@@ -1,3 +1,5 @@
+![image](https://github.com/4T4L4Y/WARecon/assets/81240785/09f29ce6-18c0-4e98-9d31-a0cfa1409ed5)
+
 # WARecon
 
 This web application serves as a comprehensive tool for domain analysis. It integrates various open-source tools to perform a range of functions including port scanning, subdomain discovery, historical URL retrieval from the Wayback Machine, live URL scanning, and vulnerability scanning. The application offers a user-friendly interface where users can input a domain and select the desired analysis tools. The backend processes include:

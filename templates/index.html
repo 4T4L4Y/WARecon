@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WARecon</title>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
+        <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+        <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-select/1.13.1/js/bootstrap-select.min.js"></script>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap-select/1.13.1/css/bootstrap-select.min.css">
+        <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" rel="stylesheet">
+     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+
+        html, body {
+            height: 100%;
+            font-family: 'Roboto', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-image: url('static/cyber_security_background.jpg');
+            background-size: cover;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+            color: #fff; /* Metin rengini beyaza çevirin */
+        }
+       .card-header {
+    background-color: #000; /* Siyah arka plan rengi */
+    color: #fff; /* Beyaz metin rengi */
+}
+       .card-body {
+    background-color: #000; /* Siyah arka plan rengi */
+    color: #fff; /* Beyaz metin rengi */
+}
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto; /* Üst ve alt boşluk yok, sağ ve sol otomatik */
+            background-color: rgba(0, 0, 0, 0.85); /* Opaklık artırıldı */
+            color: #ffffff; /* Metin rengi beyaz */
+            border-radius: 10px; /* Hafif yuvarlak köşeler */
+            padding: 20px;
+            box-shadow: 0px 0px 10px 0px rgba(255, 255, 255, 0.1);
+        }
+        .form-control, .form-control:focus, .selectpicker, .selectpicker option {
+        background-color: rgba(255, 255, 255, 0.1); /* Daha soluk bir arka plan */
+        border: 1px solid #33ff33; /* Açık yeşil kenarlık */
+        color: #33ff33; /* Açık yeşil metin rengi */
+            font-size: 1.1rem; /* Font boyutunu artır */
+        caret-color: #33ff33; /* İmleç rengi */
+    }
+
+    /* Açılır menü için stiller */
+    .selectpicker {
+        -webkit-appearance: none; /* Tarayıcı varsayılanını kaldır */
+        -moz-appearance: none;
+        appearance: none;
+        background-color: rgba(0, 0, 0, 0.5); /* Daha soluk bir arka plan */
+        border: 1px solid #33ff33; /* Yeşil kenarlık */
+        color: #33ff33; /* Yeşil metin rengi */
+    }
+
+    .selectpicker option {
+        background: rgba(0, 0, 0, 0.8); /* Seçenekler için daha opak bir arka plan */
+        color: #33ff33; /* Yeşil metin rengi */
+    }
+
+    /* Başlat butonu için stiller */
+        h1, h2, label, .btn-primary {
+            font-family: 'Source Code Pro', monospace;
+        background-color: #005500; /* Daha koyu yeşil arka plan */
+        border: 1px solid #003300; /* Daha koyu yeşil kenarlık */
+        color: #33ff33; /* Açık yeşil metin rengi */
+    }
+
+    .btn-primary:hover {
+        background-color: #009900; /* Yeşilin daha açık tonu */
+            border-color: #007700;
+    }
+
+    /* Çıktı metinleri için stiller */
+    pre {
+        background-color: rgba(0, 0, 0, 0.7); /* Daha opak bir arka plan */
+    border: 1px solid #33ff33; /* Yeşil kenarlık */
+    color: #33ff33; /* Yeşil metin rengi */
+    padding: 10px;
+    font-size: 1.15rem; /* Yazı boyutunu büyüt */
+    overflow: auto; /* İçerik çok uzunsa kaydırma çubuğunu göster */
+    margin-bottom: 20px; /* Altındaki diğer içeriklerden boşluk */
+    }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center mb-4">WARecon</h1>
+
+        <form action="/" method="post">
+            <div class="form-group">
+                <label for="domain">Domain:</label>
+                <input type="text" class="form-control" name="domain" id="domain" required>
+            </div>
+
+           <div class="form-group">
+    <label for="choices">Scan Options:</label>
+    <select class="form-control selectpicker" name="choices" id="choices" multiple required>
+        <option value="1">Naabu</option>
+        <option value="2">Subdomain Discovery</option>
+        <option value="3">Wayback URL Collection</option>
+        <option value="4">HTTPX URL Scan</option>
+        <option value="5">Nuclei Scan</option>
+    </select>
+    <small class="info-text">
+        Select the scans you want to perform.
+    </small>
+</div>
+
+            <button type="submit" class="btn btn-primary">Start Scan</button>
+        </form>
+
+        <div class="accordion mt-4" id="outputAccordion">
+            {% if naabu_output %}
+                <div class="card">
+                    <div class="card-header" id="naabuHeading">
+                        <h2 class="mb-0">
+                            <button class="btn btn-link" type="button" data-toggle="collapse" data-target="#naabuCollapse" aria-expanded="true" aria-controls="naabuCollapse">
+                                Naabu Scan
+                            </button>
+                        </h2>
+                    </div>
+
+                    <div id="naabuCollapse" class="collapse" aria-labelledby="naabuHeading" data-parent="#outputAccordion">
+                        <div class="card-body">
+                            <pre>{{ naabu_output }}</pre>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+
+            {% if subdomain_output %}
+                <div class="card">
+                    <div class="card-header" id="subdomainHeading">
+                        <h2 class="mb-0">
+                            <button class="btn btn-link" type="button" data-toggle="collapse" data-target="#subdomainCollapse" aria-expanded="true" aria-controls="subdomainCollapse">
+                                Subdomain Discovery
+                            </button>
+                        </h2>
+                    </div>
+
+                    <div id="subdomainCollapse" class="collapse" aria-labelledby="subdomainHeading" data-parent="#outputAccordion">
+                        <div class="card-body">
+                            <pre>{{ subdomain_output }}</pre>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+
+            {% if wayback_output %}
+                <div class="card">
+                    <div class="card-header" id="waybackHeading">
+                        <h2 class="mb-0">
+                            <button class="btn btn-link" type="button" data-toggle="collapse" data-target="#waybackCollapse" aria-expanded="true" aria-controls="waybackCollapse">
+                                Wayback URL Collection
+                            </button>
+                        </h2>
+                    </div>
+
+                    <div id="waybackCollapse" class="collapse" aria-labelledby="waybackHeading" data-parent="#outputAccordion">
+                        <div class="card-body">
+                            <pre>{{ wayback_output }}</pre>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+
+            {% if httpx_output %}
+                <div class="card">
+                    <div class="card-header" id="httpxHeading">
+                        <h2 class="mb-0">
+                            <button class="btn btn-link" type="button" data-toggle="collapse" data-target="#httpxCollapse" aria-expanded="true" aria-controls="httpxCollapse">
+                                HTTPX URL Scan
+                            </button>
+                        </h2>
+                    </div>
+
+                    <div id="httpxCollapse" class="collapse" aria-labelledby="httpxHeading" data-parent="#outputAccordion">
+                        <div class="card-body">
+                            <pre>{{ httpx_output }}</pre>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+
+            {% if nuclei_output %}
+                <div class="card">
+                    <div class="card-header" id="nucleiHeading">
+                        <h2 class="mb-0">
+                            <button class="btn btn-link" type="button" data-toggle="collapse" data-target="#nucleiCollapse" aria-expanded="true" aria-controls="nucleiCollapse">
+                                Nuclei Scan
+                            </button>
+                        </h2>
+                    </div>
+
+                    <div id="nucleiCollapse" class="collapse" aria-labelledby="nucleiHeading" data-parent="#outputAccordion">
+                        <div class="card-body">
+                            <pre>{{ nuclei_output }}</pre>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>

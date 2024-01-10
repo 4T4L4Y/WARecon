@@ -43,3 +43,7 @@ Then the web interface will be ready at 127.0.0.1:5000
 [Waybackpy](https://pypi.org/project/waybackpy/)
 [HTTPX](https://github.com/projectdiscovery/httpx)
 [Nuclei](https://github.com/projectdiscovery/nuclei)
+
+# Sorumluluk Reddi Beyanı
+
+Bu web uygulaması, sadece eğitim ve bilgilendirme amaçlı olarak tasarlanmıştır. Uygulamanın kullanımı, kullanıcının sorumluluğundadır ve kullanıcılar, bu araçları kullanırken ilgili yasal düzenlemelere ve etik kurallara uymakla yükümlüdürler. Uygulama geliştiricisi, bu aracın kullanımından kaynaklanan herhangi bir zarar, veri kaybı veya başka herhangi bir doğrudan veya dolaylı zarar için hiçbir sorumluluk kabul etmez. Kullanıcılar, bu aracı kullanmadan önce hedeflenen sistem veya ağın yöneticilerinden izin almalıdır. Bu araç, izinsiz testler yapmak veya herhangi bir ağa, sisteme veya servise zarar vermek amacıyla kullanılamaz. Uygulamanın kullanımı, bu şartları kabul ettiğiniz anlamına gelir.

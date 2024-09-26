@@ -1,9 +1,25 @@
 <!DOCTYPE html>
+<!--suppress ALL -->
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WARecon</title>
+     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+
+function toggleOptions() {
+    var choices = document.getElementById('choices');
+    var selectedOptions = Array.from(choices.selectedOptions).map(option => option.value);
+
+    document.getElementById('subdomainOptions').style.display = selectedOptions.includes('2') ? 'block' : 'none';
+    document.getElementById('naabuOptions').style.display = selectedOptions.includes('1') ? 'block' : 'none';
+    document.getElementById('waybackOptions').style.display = selectedOptions.includes('3') ? 'block' : 'none';
+    document.getElementById('httpxOptions').style.display = selectedOptions.includes('4') ? 'block' : 'none';
+    document.getElementById('nucleiOptions').style.display = selectedOptions.includes('5') ? 'block' : 'none'; // Nuclei seçeneği için eklenen kontrol
+}
+</script>
+
         <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js"></script>
         <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
         <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"></script>
@@ -35,6 +51,19 @@
     color: #fff; /* Beyaz metin rengi */
 }
 
+       .loader {
+  border: 6px solid #f3f3f3; /* Arka planı açık renkli */
+  border-top: 6px solid #3498db; /* Mavi, dönme efektini belirler */
+  border-radius: 50%;
+  width: 60px;
+  height: 60px;
+  animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
         .container {
             max-width: 800px;
             margin: 0 auto; /* Üst ve alt boşluk yok, sağ ve sol otomatik */
@@ -61,6 +90,15 @@
         border: 1px solid #33ff33; /* Yeşil kenarlık */
         color: #33ff33; /* Yeşil metin rengi */
     }
+    .scanning-text {
+  margin-top: 20px; /* Animasyondan biraz boşluk */
+  color: #fff; /* Metin rengi beyaz */
+  font-family: 'Roboto', sans-serif; /* Font ailesi */
+  font-size: 20px; /* Font boyutu */
+  text-align: center; /* Metni ortala */
+  width: 100%; /* Genişliği tam sığacak şekilde ayarla */
+}
+
 
     .selectpicker option {
         background: rgba(0, 0, 0, 0.8); /* Seçenekler için daha opak bir arka plan */
@@ -90,9 +128,64 @@
     overflow: auto; /* İçerik çok uzunsa kaydırma çubuğunu göster */
     margin-bottom: 20px; /* Altındaki diğer içeriklerden boşluk */
     }
+
+
+.color-box {
+    width: 20px;
+    height: 20px;
+    margin-right: 5px;
+    border: 1px solid #ffffff; /* Beyaz kenarlık */
+}
+.chart-container {
+    max-width: 800px;
+    width: 100%; /* Grafik genişliğini maksimum genişliğe sığacak şekilde ayarla */
+    margin: 0 auto; /* Otomatik marjlar sayesinde yatayda ortala */
+    padding: 20px; /* İçerideki içeriklerle kenarlar arasında boşluk sağla */
+    background-color: #f8f9fa; /* Arka plan rengi, örnek olarak açık gri */
+    border-radius: 8px; /* Kenarları yuvarlaklaştır */
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Hafif bir gölge ekle */
+}
+.severity-legend {
+        max-width: 800px; /* Grafik maksimum genişliği 800 piksel olacak şekilde ayarla */
+    display: flex;
+    justify-content: center;
+    margin: 20px auto; /* Merkeze al ve üst-altta boşluk bırak */
+    padding: 10px;
+    background-color: white; /* Arka plan rengini beyaz yap */
+    border-radius: 10px; /* Kenarları yuvarlak yap */
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); /* Hafif gölge ekle */
+    width: 80%; /* Genişliği %80 yap */
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    margin-right: 15px; /* Sağında boşluk bırak */
+    color: #333; /* Metin rengini koyu gri yap */
+    font-size: 16px; /* Font boyutunu büyüt */
+    font-family: 'Roboto', sans-serif; /* Font ailesini belirle */
+}
+
+.color-box {
+    width: 20px;
+    height: 20px;
+    margin-right: 10px; /* Kutu ile metin arasında boşluk bırak */
+    border-radius: 50%; /* Renk kutularını yuvarlak yap */
+}
+
+
     </style>
 </head>
 <body>
+
+    <div id="loading" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.5); z-index: 9999;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);">
+        <div class="loader"></div>
+        <p class="scanning-text">Scanning...</p>
+    </div>
+    </div>
+
+
     <div class="container">
         <h1 class="text-center mb-4">WARecon</h1>
 
@@ -104,7 +197,7 @@
 
            <div class="form-group">
     <label for="choices">Scan Options:</label>
-    <select class="form-control selectpicker" name="choices" id="choices" multiple required>
+    <select class="form-control selectpicker" name="choices" id="choices" multiple required onchange="toggleOptions()">
         <option value="1">Naabu</option>
         <option value="2">Subdomain Discovery</option>
         <option value="3">Wayback URL Collection</option>
@@ -116,11 +209,80 @@
     </small>
 </div>
 
-            <button type="submit" class="btn btn-primary">Start Scan</button>
-        </form>
+<div id="naabuOptions" style="display:none;">
+    <h3>Naabu Scan Options</h3>
+    <label for="naabuPorts">Ports for Naabu Scan:</label>
+    <input type="text" class="form-control" id="naabuPorts" name="naabuPorts" placeholder="Enter ports (e.g., 80,443) (Optional)">
+</div>
 
+<div id="subdomainOptions" style="display:none;">
+    <h3>Subdomain Scan Options</h3>
+    <label for="subdomainParams">Subdomain Parameters:</label>
+    <select class="form-control selectpicker" name="subdomainParams" id="subdomainParams" multiple>
+        <option value="-all">"-all" use all sources for enumeration (slow)</option>
+    </select>
+    <small class="info-text">
+        Select additional parameters for subdomain discovery.
+    </small>
+</div>
+
+<div id="waybackOptions" style="display:none;">
+    <h3>Wayback Scan Options</h3>
+    <div class="form-group">
+        <div class="checkbox">
+            <label>
+                <input type="checkbox" name="waybackKnownUrls" id="waybackKnownUrls" onchange="toggleSubdomainOption()"> Retrieve known URLs for Wayback URL Collection
+            </label>
+        </div>
+        <div class="checkbox" style="display: none;" id="includeSubdomainsContainer">
+            <label>
+                <input type="checkbox" name="includeSubdomains"> Include subdomains
+            </label>
+        </div>
+    </div>
+</div>
+
+<div id="httpxOptions" style="display:none;">
+    <h3>HTTPX Scan Options</h3>
+    <div class="form-group">
+        <div class="checkbox">
+            <label>
+                <input type="checkbox" name="httpxFollowRedirects"> Follow Redirects (-fr)
+            </label>
+        </div>
+        <div class="checkbox">
+            <label>
+                <input type="checkbox" name="httpxStatusCode"> Show Status Codes (-sc)
+            </label>
+        </div>
+        <label for="httpxMatchCodes">Status Code Matching (-mc):</label>
+        <input type="text" class="form-control" name="httpxMatchCodes" placeholder="Enter status codes, e.g., 200,302,404">
+    </div>
+</div>
+
+<div id="nucleiOptions" style="display:none;">
+    <h3>Nuclei Scan Options</h3>
+    <div class="form-group">
+        <label for="nucleiTemplates">Nuclei Templates:</label>
+        <input type="text" class="form-control" name="nucleiTemplates" id="nucleiTemplates" placeholder="Enter template ids, e.g., caa-fingerprint">
+    </div>
+    <div class="form-group">
+        <label for="nucleiSeverity">Select Severity (multiple possible):</label>
+        <select multiple class="form-control selectpicker" name="nucleiSeverity" id="nucleiSeverity" onchange="toggleOptions()">
+            <option value="critical">Critical</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
+            <option value="info">Info</option>
+        </select>
+    </div>
+</div>
+
+<button type="submit" class="btn btn-primary">Start Scan</button>
+        </form>
         <div class="accordion mt-4" id="outputAccordion">
             {% if naabu_output %}
+            <a class="btn btn-primary" href="/outputs/{{ domain }}_naabu.txt" role="button">Download Naabu Results</a>
                 <div class="card">
                     <div class="card-header" id="naabuHeading">
                         <h2 class="mb-0">
@@ -136,9 +298,12 @@
                         </div>
                     </div>
                 </div>
+
+
             {% endif %}
 
             {% if subdomain_output %}
+            <a class="btn btn-primary" href="/outputs/{{ domain }}_subdomains.txt" role="button">Download Subdomain Results</a>
                 <div class="card">
                     <div class="card-header" id="subdomainHeading">
                         <h2 class="mb-0">
@@ -157,6 +322,7 @@
             {% endif %}
 
             {% if wayback_output %}
+            <a class="btn btn-primary" href="/outputs/{{ domain }}_wayback.txt" role="button">Download Wayback Results</a>
                 <div class="card">
                     <div class="card-header" id="waybackHeading">
                         <h2 class="mb-0">
@@ -175,6 +341,7 @@
             {% endif %}
 
             {% if httpx_output %}
+            <a class="btn btn-primary" href="/outputs/{{ domain }}_httpx.txt" role="button" >Download Httpx Results</a>
                 <div class="card">
                     <div class="card-header" id="httpxHeading">
                         <h2 class="mb-0">
@@ -193,6 +360,7 @@
             {% endif %}
 
             {% if nuclei_output %}
+            <a class="btn btn-primary" href="/outputs/{{ domain }}_nuclei.txt" role="button" >Download Nuclei Results</a>
                 <div class="card">
                     <div class="card-header" id="nucleiHeading">
                         <h2 class="mb-0">
@@ -210,6 +378,173 @@
                 </div>
             {% endif %}
         </div>
+
     </div>
+
+<div class="chart-container" id="chartContainer" style="display: none;">
+    <canvas id="nucleiChart"></canvas>
+</div>
+<div id="severityLegendContainer"></div>
+
+ <script>
+document.addEventListener('DOMContentLoaded', function() {
+    const domain = "{{ domain }}" ;
+    fetchNucleiDataAndRenderChart(domain);
+});
+
+function fetchNucleiDataAndRenderChart(domain) {
+    fetch(`/outputs/${domain}_nuclei.json`)
+    .then(response => response.json())
+    .then(data => {
+        renderNucleiChart(data);
+        renderSeverityLegend(); // Legend'ı render etmek için fonksiyon çağrısı
+    })
+    .catch(error => console.error('Error loading the nuclei data:', error));
+}
+
+function renderSeverityLegend() {
+    const container = document.getElementById('severityLegendContainer');
+    container.innerHTML = ''; // Eğer önceden içerik varsa temizle
+
+    const legendHtml = `
+        <div class="severity-legend">
+            <span class="legend-item"><span class="color-box" style="background-color: rgba(255, 0, 0, 0.6);"></span> Critical</span>
+            <span class="legend-item"><span class="color-box" style="background-color: rgba(255, 165, 0, 0.6);"></span> High</span>
+            <span class="legend-item"><span class="color-box" style="background-color: rgba(255, 255, 0, 0.6);"></span> Medium</span>
+            <span class="legend-item"><span class="color-box" style="background-color: rgba(0, 128, 0, 0.6);"></span> Low</span>
+            <span class="legend-item"><span class="color-box" style="background-color: rgba(0, 0, 255, 0.6);"></span> Info</span>
+        </div>
+    `;
+
+    container.innerHTML = legendHtml; // HTML içeriğini konteynere ekle
+}
+
+function renderNucleiChart(data) {
+    const chartContainer = document.getElementById('nucleiChart');
+    const cardBody = document.getElementById('chartContainer');
+    const ctx = chartContainer.getContext('2d');
+    const labels = data.map(item => item.info.name);
+    const values = data.map(item => {
+        let color;
+        switch (item.info.severity) {
+            case 'critical':
+                color = 'rgba(255, 0, 0, 0.6)';
+                break;
+            case 'high':
+                color = 'rgba(255, 165, 0, 0.6)';
+                break;
+            case 'medium':
+                color = 'rgba(255, 255, 0, 0.6)';
+                break;
+            case 'low':
+                color = 'rgba(0, 128, 0, 0.6)';
+                break;
+            case 'info':
+                color = 'rgba(0, 0, 255, 0.6)';
+                break;
+            default:
+                color = 'rgba(128, 128, 128, 0.6)';
+        }
+        return { value: item.info.severity == 'info' ? 1 : item.info.severity == 'low' ? 2 : item.info.severity == 'medium' ? 3 : item.info.severity == 'high' ? 4 : 5, color };
+    });
+
+    // Grafiği oluşturduktan sonra card-body'yi görünür yap
+    cardBody.style.display = 'block';
+
+const chart = new Chart(ctx, {
+
+    type: 'bar',
+    data: {
+        labels: labels,
+        datasets: [{
+            label: 'Nuclei Statistics',
+            data: values.map(item => item.value),
+            backgroundColor: values.map(item => item.color),
+            borderColor: values.map(item => item.color.replace(/,\s*0\.6\)/, ', 1)')),
+            borderWidth: 2,
+            hoverBackgroundColor: values.map(item => item.color.replace(/,\s*0\.6\)/, ', 0.8)')),
+            hoverBorderColor: values.map(item => item.color.replace(/,\s*0\.6\)/, ', 1)')),
+            hoverBorderWidth: 2,
+            barPercentage: 0.75
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+            yAxes: [{
+                ticks: {
+                    beginAtZero: true,
+                    stepSize: 1,
+                    max: 5,
+                    fontColor: '#ccc',
+                    fontFamily: 'Roboto, sans-serif',
+                    fontSize: 14
+                },
+                gridLines: {
+                    display: true,
+                    color: "rgba(255,255,255,0.2)"
+                }
+            }],
+            xAxes: [{
+                ticks: {
+                    fontColor: '#00ff00',
+                    fontFamily: 'Roboto, sans-serif',
+                    fontSize: 14
+                },
+                gridLines: {
+                    display: false
+                }
+            }]
+        },
+        legend: {
+            display: true,
+            labels: {
+                fontColor: 'white',
+                fontSize: 16,
+                fontFamily: 'Roboto, sans-serif',
+
+            }
+        },
+        tooltips: {
+            enabled: true,
+            mode: 'index',
+            intersect: false,
+            bodyFontColor: 'rgba(0, 0, 0, 0.87)',
+            bodyFontSize: 14,
+            bodyFontFamily: 'Roboto, sans-serif',
+            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+            titleFontColor: 'rgba(0, 0, 0, 0.87)',
+            titleFontSize: 16,
+            titleFontFamily: 'Roboto, sans-serif',
+            cornerRadius: 4,
+            xPadding: 10,
+            yPadding: 10
+        },
+        hover: {
+            mode: 'nearest',
+            intersect: true
+        },
+        layout: {
+            padding: {
+                left: 50,
+                right: 50,
+                top: 0,
+                bottom: 0
+            }
+        }
+    }
+});
+}
+
+</script>
+
+
+    <script>
+
+        document.querySelector('form').addEventListener('submit', function() {
+            document.getElementById('loading').style.display = 'block';
+        });
+    </script>
 </body>
 </html>

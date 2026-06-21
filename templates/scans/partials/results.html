@@ -1,3 +1,4 @@
+{% load scan_extras %}
 <div class="card">
   <div class="card-header d-flex justify-content-between align-items-center flex-wrap">
     <h4 class="card-title mb-0"><i class="tim-icons icon-bullet-list-67 mr-2"></i>Sonuçlar</h4>
@@ -12,15 +13,41 @@
     {% endif %}
   </div>
 
-  {% if naabu_output or subdomain_output or wayback_output or httpx_output or nuclei_output or dnsx_output or katana_output %}
+  {% if scan and exploit_suggestions %}
+  <div class="card-body border-bottom py-3">
+    <div class="alert alert-warning mb-0">
+      <h6 class="mb-2"><i class="tim-icons icon-alert-circle-exc mr-1"></i>Nmap Exploit / Zafiyet Önerileri ({{ exploit_suggestions|length }})</h6>
+      <ul class="mb-3 pl-3 small">
+        {% for item in exploit_suggestions|slice:":5" %}
+        <li>
+          {% if item.host %}<strong>{{ item.host }}</strong> — {% endif %}
+          {{ item.summary|truncatechars:120 }}
+          {% if item.cve %}<span class="badge badge-danger ml-1">{{ item.cve }}</span>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      <form method="post" action="{% url 'scans:exploit_check' scan.pk %}" class="d-inline"
+            onsubmit="return confirm('Nuclei exploit şablonları ile doğrulama taraması başlatılsın mı? Yalnızca yetkili hedeflerde kullanın.');">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-sm btn-warning">
+          <i class="tim-icons icon-button-power mr-1"></i>Exploit doğrulama taramasını başlat
+        </button>
+      </form>
+      <span class="text-muted small ml-2">Onayınız olmadan otomatik exploit çalıştırılmaz.</span>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if naabu_output or nmap_output or subdomain_output or wayback_output or httpx_output or nuclei_output or dnsx_output or katana_output %}
   <div class="card-header card-header-tabs">
     <ul class="nav nav-tabs" role="tablist">
       {% if subdomain_output %}<li class="nav-item"><a class="nav-link active" data-toggle="tab" href="#tab-subdomain"><i class="tim-icons icon-world mr-1"></i>Subdomain</a></li>{% endif %}
       {% if dnsx_output %}<li class="nav-item"><a class="nav-link{% if not subdomain_output %} active{% endif %}" data-toggle="tab" href="#tab-dnsx"><i class="tim-icons icon-cloud-download-93 mr-1"></i>DNS</a></li>{% endif %}
-      {% if wayback_output %}<li class="nav-item"><a class="nav-link{% if not subdomain_output and not dnsx_output %} active{% endif %}" data-toggle="tab" href="#tab-wayback"><i class="tim-icons icon-book-bookmark mr-1"></i>Wayback</a></li>{% endif %}
+      {% if wayback_output %}<li class="nav-item"><a class="nav-link" data-toggle="tab" href="#tab-wayback"><i class="tim-icons icon-book-bookmark mr-1"></i>Wayback</a></li>{% endif %}
       {% if httpx_output %}<li class="nav-item"><a class="nav-link" data-toggle="tab" href="#tab-httpx"><i class="tim-icons icon-link-72 mr-1"></i>HTTPX</a></li>{% endif %}
       {% if katana_output %}<li class="nav-item"><a class="nav-link" data-toggle="tab" href="#tab-katana"><i class="tim-icons icon-map-big mr-1"></i>Katana</a></li>{% endif %}
       {% if naabu_output %}<li class="nav-item"><a class="nav-link" data-toggle="tab" href="#tab-naabu"><i class="tim-icons icon-spaceship mr-1"></i>Port</a></li>{% endif %}
+      {% if nmap_output %}<li class="nav-item"><a class="nav-link" data-toggle="tab" href="#tab-nmap"><i class="tim-icons icon-zoom-split mr-1"></i>Nmap</a></li>{% endif %}
       {% if nuclei_output %}<li class="nav-item"><a class="nav-link" data-toggle="tab" href="#tab-nuclei"><i class="tim-icons icon-lock-circle mr-1"></i>Nuclei</a></li>{% endif %}
     </ul>
   </div>
@@ -30,63 +57,57 @@
       <div class="tab-pane active show" id="tab-subdomain">
         <div class="d-flex justify-content-between mb-3">
           <span class="text-muted">Subfinder</span>
-          <a class="btn btn-sm btn-primary" href="{% url 'scans:download' domain|add:'_subdomains.txt' %}"><i class="tim-icons icon-cloud-download-93 mr-1"></i>İndir</a>
+          {% if scan %}<a class="btn btn-sm btn-primary" href="{% url 'scans:download' scan.pk domain|add:'_subdomains.txt' %}"><i class="tim-icons icon-cloud-download-93 mr-1"></i>İndir</a>{% endif %}
         </div>
-        <pre class="result-output">{{ subdomain_output }}</pre>
+        <div class="result-output-rich">{{ subdomain_output|format_output:"subdomain" }}</div>
       </div>
       {% endif %}
       {% if dnsx_output %}
       <div class="tab-pane{% if not subdomain_output %} active show{% endif %}" id="tab-dnsx">
         <div class="d-flex justify-content-between mb-3">
-          <span class="text-muted">dnsx DNS kayıtları</span>
-          <a class="btn btn-sm btn-primary" href="{% url 'scans:download' domain|add:'_dnsx.txt' %}"><i class="tim-icons icon-cloud-download-93 mr-1"></i>İndir</a>
+          <span class="text-muted">dnsx</span>
+          {% if scan %}<a class="btn btn-sm btn-primary" href="{% url 'scans:download' scan.pk domain|add:'_dnsx.txt' %}">İndir</a>{% endif %}
         </div>
-        <pre class="result-output">{{ dnsx_output }}</pre>
+        <div class="result-output-rich">{{ dnsx_output|format_output:"dnsx" }}</div>
       </div>
       {% endif %}
       {% if wayback_output %}
       <div class="tab-pane" id="tab-wayback">
-        <div class="d-flex justify-content-between mb-3">
-          <span class="text-muted">Wayback</span>
-          <a class="btn btn-sm btn-primary" href="{% url 'scans:download' domain|add:'_wayback.txt' %}"><i class="tim-icons icon-cloud-download-93 mr-1"></i>İndir</a>
-        </div>
-        <pre class="result-output">{{ wayback_output }}</pre>
+        <div class="d-flex justify-content-between mb-3"><span class="text-muted">Wayback (alt alan bazlı)</span></div>
+        <div class="result-output-rich">{{ wayback_output|format_output:"wayback" }}</div>
       </div>
       {% endif %}
       {% if httpx_output %}
       <div class="tab-pane" id="tab-httpx">
-        <div class="d-flex justify-content-between mb-3">
-          <span class="text-muted">HTTPX</span>
-          <a class="btn btn-sm btn-primary" href="{% url 'scans:download' domain|add:'_httpx.txt' %}"><i class="tim-icons icon-cloud-download-93 mr-1"></i>İndir</a>
-        </div>
-        <pre class="result-output">{{ httpx_output }}</pre>
+        <div class="d-flex justify-content-between mb-3"><span class="text-muted">HTTPX</span></div>
+        <div class="result-output-rich">{{ httpx_output|format_output:"httpx" }}</div>
       </div>
       {% endif %}
       {% if katana_output %}
       <div class="tab-pane" id="tab-katana">
-        <div class="d-flex justify-content-between mb-3">
-          <span class="text-muted">Katana crawl</span>
-          <a class="btn btn-sm btn-primary" href="{% url 'scans:download' domain|add:'_katana.txt' %}"><i class="tim-icons icon-cloud-download-93 mr-1"></i>İndir</a>
-        </div>
-        <pre class="result-output">{{ katana_output }}</pre>
+        <div class="d-flex justify-content-between mb-3"><span class="text-muted">Katana</span></div>
+        <div class="result-output-rich">{{ katana_output|format_output:"katana" }}</div>
       </div>
       {% endif %}
       {% if naabu_output %}
       <div class="tab-pane" id="tab-naabu">
         <div class="d-flex justify-content-between mb-3">
           <span class="text-muted">Naabu</span>
-          <a class="btn btn-sm btn-primary" href="{% url 'scans:download' domain|add:'_naabu.txt' %}"><i class="tim-icons icon-cloud-download-93 mr-1"></i>İndir</a>
+          {% if scan %}<a class="btn btn-sm btn-primary" href="{% url 'scans:download' scan.pk domain|add:'_naabu.txt' %}">İndir</a>{% endif %}
         </div>
-        <pre class="result-output">{{ naabu_output }}</pre>
+        <div class="result-output-rich">{{ naabu_output|format_output:"naabu" }}</div>
+      </div>
+      {% endif %}
+      {% if nmap_output %}
+      <div class="tab-pane" id="tab-nmap">
+        <div class="d-flex justify-content-between mb-3"><span class="text-muted">Nmap servis &amp; vuln</span></div>
+        <div class="result-output-rich">{{ nmap_output|format_output:"nmap" }}</div>
       </div>
       {% endif %}
       {% if nuclei_output %}
       <div class="tab-pane" id="tab-nuclei">
-        <div class="d-flex justify-content-between mb-3">
-          <span class="text-muted">Nuclei</span>
-          <a class="btn btn-sm btn-primary" href="{% url 'scans:download' domain|add:'_nuclei.txt' %}"><i class="tim-icons icon-cloud-download-93 mr-1"></i>İndir</a>
-        </div>
-        <pre class="result-output">{{ nuclei_output }}</pre>
+        <div class="d-flex justify-content-between mb-3"><span class="text-muted">Nuclei</span></div>
+        <div class="result-output-rich">{{ nuclei_output|format_output:"nuclei" }}</div>
         <div id="chartSection" class="mt-4" style="display:none">
           <h6 class="text-primary mb-3">Zafiyet Dağılımı</h6>
           <div class="chart-wrap"><canvas id="nucleiChart"></canvas></div>

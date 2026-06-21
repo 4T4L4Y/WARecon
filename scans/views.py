@@ -15,8 +15,10 @@ from django.views.decorators.http import require_GET, require_http_methods
 from .forms import ScanForm
 from .models import Scan, ScanLog
 from .services.live_log import module_status_for_scan
+from .services.output_paths import cleanup_scan_outputs, scan_output_dir
 from .services.pipeline import create_scan, scan_to_context
 from .services.reports import render_html_report, render_pdf_report
+from scans.services import tools
 from .tasks import enqueue_scan
 
 
@@ -61,6 +63,7 @@ def index(request):
         "nuclei_output": "",
         "dnsx_output": "",
         "katana_output": "",
+        "nmap_output": "",
     }
 
     if request.method == "POST":
@@ -165,8 +168,71 @@ def scan_events(request, pk: int):
 @login_required_basic
 @require_GET
 def history(request):
-    scans = _user_scans(request.user)[:50]
-    return render(request, "scans/history.html", {"scans": scans})
+    show_archived = request.GET.get("archived") == "1"
+    scans = _user_scans(request.user).filter(is_archived=show_archived)[:50]
+    return render(request, "scans/history.html", {
+        "scans": scans,
+        "show_archived": show_archived,
+    })
+
+
+@login_required_basic
+@require_http_methods(["POST"])
+def scan_archive(request, pk: int):
+    scan = get_object_or_404(_user_scans(request.user), pk=pk)
+    scan.is_archived = not scan.is_archived
+    scan.save(update_fields=["is_archived"])
+    label = "arşivlendi" if scan.is_archived else "arşivden çıkarıldı"
+    messages.success(request, f"Tarama {label}.")
+    return redirect(request.POST.get("next") or "scans:history")
+
+
+@login_required_basic
+@require_http_methods(["POST"])
+def scan_delete(request, pk: int):
+    scan = get_object_or_404(_user_scans(request.user), pk=pk)
+    cleanup_scan_outputs(scan.pk)
+    scan.delete()
+    messages.success(request, "Tarama silindi.")
+    return redirect("scans:history")
+
+
+@login_required_basic
+@require_http_methods(["POST"])
+def run_exploit_check(request, pk: int):
+    scan = get_object_or_404(_user_scans(request.user).prefetch_related("results"), pk=pk)
+    suggestions = (scan.config or {}).get("nmap_exploit_suggestions", [])
+    if not suggestions:
+        messages.warning(request, "Doğrulanacak exploit önerisi bulunamadı.")
+        return redirect("scans:detail", pk=pk)
+
+    hosts = list({item.get("host", scan.domain) for item in suggestions})
+    log_token = None
+    try:
+        from scans.services.live_log import bind_scan_log, reset_scan_log
+
+        log_token = bind_scan_log(scan.pk, "5")
+        output = tools.run_nuclei_exploit_verification(scan.pk, scan.domain, hosts)
+    finally:
+        if log_token is not None:
+            reset_scan_log(log_token)
+
+    from scans.models import ScanModuleResult
+
+    nuclei_result = scan.results.filter(module=ScanModuleResult.Module.NUCLEI).first()
+    merged = (nuclei_result.output + "\n\n=== Exploit Doğrulama ===\n" + output) if nuclei_result else output
+    if nuclei_result:
+        nuclei_result.output = merged
+        nuclei_result.save(update_fields=["output"])
+    else:
+        ScanModuleResult.objects.create(
+            scan=scan,
+            module=ScanModuleResult.Module.NUCLEI,
+            output=merged,
+            output_file=f"scan_{scan.pk}/{scan.domain}_nuclei_exploit.txt",
+        )
+    messages.success(request, "Exploit doğrulama taraması tamamlandı.")
+    return redirect("scans:detail", pk=pk)
 
 
 @login_required_basic
@@ -196,23 +262,23 @@ def report_pdf(request, pk: int):
 
 @login_required_basic
 @require_GET
-def download_output(request, filename: str):
-    if ".." in filename or "/" in filename:
+def download_output(request, pk: int, filename: str):
+    scan = get_object_or_404(_user_scans(request.user), pk=pk)
+    if ".." in filename:
         raise Http404
-    path = settings.OUTPUTS_DIR / filename
+    path = scan_output_dir(pk) / filename
+    if not path.is_file():
+        path = settings.OUTPUTS_DIR / f"scan_{pk}" / filename
     if not path.is_file():
         raise Http404
-    domain = filename.split("_")[0]
-    if not _user_scans(request.user).filter(domain=domain).exists():
-        raise Http404
-    return FileResponse(path.open("rb"), as_attachment=True, filename=filename)
+    return FileResponse(path.open("rb"), as_attachment=True, filename=path.name)
 
 
+@login_required_basic
 @require_GET
-def nuclei_json(request, filename: str):
-    if not filename.endswith("_nuclei.json") or ".." in filename:
-        raise Http404
-    path = settings.OUTPUTS_DIR / filename
-    if not path.is_file():
-        return JsonResponse({"error": "File not found"}, status=404)
-    return JsonResponse(json.loads(path.read_text(encoding="utf-8")), safe=False)
+def nuclei_json_for_scan(request, pk: int):
+    scan = get_object_or_404(_user_scans(request.user), pk=pk)
+    from scans.services.reports import _collect_nuclei_json
+
+    data = _collect_nuclei_json(scan)
+    return JsonResponse(data, safe=False)

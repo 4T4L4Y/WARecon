@@ -2,6 +2,7 @@ from django.utils import timezone
 
 from scans.models import Scan, ScanModuleResult
 from scans.services.live_log import bind_scan_log, log_activity, reset_scan_log
+from scans.services.output_paths import scan_output_dir
 
 from . import tools
 from .validators import (
@@ -11,7 +12,9 @@ from .validators import (
     validate_template_ids,
 )
 
-# Keşif → DNS → arşiv → doğrulama → crawl → port → zafiyet
+WEB_MODULE_IDS = {"3", "4", "5", "7"}
+
+# Keşif → DNS → alt alan web zinciri → port → nmap → (kök nuclei yok, nuclei alt alanda)
 MODULE_ORDER = ["2", "6", "3", "4", "7", "1", "5"]
 
 MODULE_MAP = {
@@ -22,6 +25,7 @@ MODULE_MAP = {
     "5": ScanModuleResult.Module.NUCLEI,
     "6": ScanModuleResult.Module.DNSX,
     "7": ScanModuleResult.Module.KATANA,
+    "8": ScanModuleResult.Module.NMAP,
 }
 
 MODULE_LABELS = {
@@ -32,6 +36,8 @@ MODULE_LABELS = {
     "5": "Zafiyet Tarama (Nuclei)",
     "6": "DNS Kayıtları (dnsx)",
     "7": "Web Crawl (Katana)",
+    "8": "Servis Tarama (Nmap)",
+    "web": "Alt Alan Web Analizi",
 }
 
 OUTPUT_SUFFIX = {
@@ -42,6 +48,7 @@ OUTPUT_SUFFIX = {
     ScanModuleResult.Module.NUCLEI: "_nuclei.txt",
     ScanModuleResult.Module.DNSX: "_dnsx.txt",
     ScanModuleResult.Module.KATANA: "_katana.txt",
+    ScanModuleResult.Module.NMAP: "_nmap.txt",
 }
 
 
@@ -49,10 +56,39 @@ def ordered_choices(choices: list[str]) -> list[str]:
     return [c for c in MODULE_ORDER if c in choices]
 
 
+def build_execution_plan(choices: list[str]) -> list[str]:
+    """Collapse 3/4/5/7 into single 'web' phase; drop standalone 5 if only per-subdomain."""
+    plan: list[str] = []
+    web_added = False
+    for choice in ordered_choices(choices):
+        if choice in WEB_MODULE_IDS:
+            if not web_added:
+                plan.append("web")
+                web_added = True
+        else:
+            plan.append(choice)
+    return plan
+
+
 def validate_pipeline(choices: list[str]) -> None:
     ordered = ordered_choices(choices)
     if "3" in ordered and "2" not in ordered:
         raise ValueError("Wayback modülü için önce Subdomain keşfi gereklidir.")
+    if WEB_MODULE_IDS.intersection(ordered) and "2" not in ordered:
+        raise ValueError("HTTPX/Nuclei/Katana/Wayback için önce Subdomain keşfi gereklidir.")
+
+
+def _output_relpath(scan_id: int, filename: str) -> str:
+    return f"scan_{scan_id}/{filename}"
+
+
+def _save_module_result(scan: Scan, module: str, output_text: str, filename: str) -> None:
+    ScanModuleResult.objects.create(
+        scan=scan,
+        module=module,
+        output=output_text,
+        output_file=_output_relpath(scan.pk, filename),
+    )
 
 
 def create_scan(user, form_data: dict) -> Scan:
@@ -72,6 +108,7 @@ def create_scan(user, form_data: dict) -> Scan:
         "nucleiTemplates": form_data.get("nucleiTemplates", ""),
         "nucleiSeverity": form_data.get("nucleiSeverity", []),
         "katanaDepth": form_data.get("katanaDepth", "2"),
+        "nmap_exploit_suggestions": [],
     }
 
     scan = Scan.objects.create(
@@ -83,6 +120,7 @@ def create_scan(user, form_data: dict) -> Scan:
         status=Scan.Status.PENDING,
         progress_message="Kuyruğa alındı…",
     )
+    scan_output_dir(scan.pk)
     token = bind_scan_log(scan.pk)
     log_activity("Tarama kuyruğa alındı.", level="info")
     reset_scan_log(token)
@@ -98,33 +136,37 @@ def execute_scan(scan_id: int) -> None:
     log_token = bind_scan_log(scan_id)
     log_activity("Tarama worker tarafından başlatıldı.", level="info")
 
-    config = scan.config or {}
+    config = dict(scan.config or {})
     domain = scan.domain
-    raw_input = scan.raw_input
     ordered = scan.modules
-    total = len(ordered) or 1
+    plan = build_execution_plan(ordered)
+    total = len(plan) + (1 if "1" in ordered else 0)  # +1 for auto nmap after naabu
+    step_index = 0
 
     try:
-        for index, choice in enumerate(ordered):
-            module_token = bind_scan_log(scan_id, choice)
-            label = MODULE_LABELS.get(choice, choice)
-            percent = int((index / total) * 100)
-            scan.update_progress(choice, f"{label} çalışıyor…", percent)
-            log_activity(f"▶ {label} başlatılıyor…", level="info", module=choice)
+        for step in plan:
+            module_token = bind_scan_log(scan_id, step)
+            label = MODULE_LABELS.get(step, step)
+            percent = int((step_index / max(total, 1)) * 100)
+            scan.update_progress(step, f"{label} çalışıyor…", percent)
+            log_activity(f"▶ {label} başlatılıyor…", level="info", module=step)
 
-            module_key = MODULE_MAP[choice]
-            output_text = _run_module(choice, domain, raw_input, config)
+            if step == "web":
+                _run_web_phase(scan, config, ordered)
+            elif step == "1":
+                _run_naabu_nmap_phase(scan, config)
+                step_index += 1  # nmap counts as extra progress bump
+            else:
+                output_text = _run_simple_module(scan_id, step, domain, scan.raw_input, config)
+                module_key = MODULE_MAP[step]
+                filename = f"{domain}{OUTPUT_SUFFIX[module_key]}"
+                _save_module_result(scan, module_key, output_text, filename)
+                line_count = len([ln for ln in output_text.splitlines() if ln.strip()])
+                log_activity(f"✓ {label} bitti — {line_count} satır.", level="success", module=step)
 
-            line_count = len([ln for ln in output_text.splitlines() if ln.strip()])
-            log_activity(f"✓ {label} bitti — {line_count} satır sonuç.", level="success", module=choice)
             reset_scan_log(module_token)
-
-            ScanModuleResult.objects.create(
-                scan=scan,
-                module=module_key,
-                output=output_text,
-                output_file=f"{domain}{OUTPUT_SUFFIX[module_key]}",
-            )
+            step_index += 1
+            scan.update_progress(step, f"{label} tamamlandı", int((step_index / max(total, 1)) * 100))
 
         scan.status = Scan.Status.COMPLETED
         scan.progress_percent = 100
@@ -133,7 +175,7 @@ def execute_scan(scan_id: int) -> None:
         scan.completed_at = timezone.now()
         scan.save(update_fields=[
             "status", "progress_percent", "progress_message",
-            "current_module", "completed_at",
+            "current_module", "completed_at", "config",
         ])
         log_activity("Tüm modüller tamamlandı.", level="success")
     except Exception as exc:
@@ -150,39 +192,66 @@ def execute_scan(scan_id: int) -> None:
         reset_scan_log(log_token)
 
 
-def _run_module(choice: str, domain: str, raw_input: str, config: dict) -> str:
-    if choice == "1":
-        ports = validate_ports(config.get("naabuPorts", ""))
-        return tools.run_naabu(domain, ports)
+def _run_web_phase(scan: Scan, config: dict, ordered: list[str]) -> None:
+    outputs = tools.run_per_subdomain_web_pipeline(
+        scan.pk,
+        scan.domain,
+        config,
+        run_wayback="3" in ordered,
+        run_httpx="4" in ordered,
+        run_nuclei="5" in ordered,
+        run_katana="7" in ordered,
+    )
+    mapping = {
+        "wayback": (ScanModuleResult.Module.WAYBACK, "3"),
+        "httpx": (ScanModuleResult.Module.HTTPX, "4"),
+        "nuclei": (ScanModuleResult.Module.NUCLEI, "5"),
+        "katana": (ScanModuleResult.Module.KATANA, "7"),
+    }
+    for key, (module, choice_id) in mapping.items():
+        if choice_id not in ordered:
+            continue
+        text = outputs.get(key, "")
+        filename = f"{scan.domain}{OUTPUT_SUFFIX[module]}"
+        _save_module_result(scan, module, text, filename)
+
+
+def _run_naabu_nmap_phase(scan: Scan, config: dict) -> None:
+    ports = validate_ports(config.get("naabuPorts", ""))
+    naabu_out = tools.run_naabu(scan.pk, scan.domain, ports)
+    _save_module_result(
+        scan,
+        ScanModuleResult.Module.NAABU,
+        naabu_out,
+        f"{scan.domain}_naabu.txt",
+    )
+
+    scan.update_progress("8", "Nmap servis taraması…", scan.progress_percent)
+    log_activity("▶ Nmap: açık portlar taranıyor…", level="info", module="8")
+    nmap_out, exploits = tools.run_nmap_on_naabu(scan.pk, scan.domain, naabu_out)
+    config["nmap_exploit_suggestions"] = exploits
+    scan.config = config
+    scan.save(update_fields=["config"])
+
+    if nmap_out.strip():
+        _save_module_result(
+            scan,
+            ScanModuleResult.Module.NMAP,
+            nmap_out,
+            f"{scan.domain}_nmap.txt",
+        )
+    if exploits:
+        log_activity(
+            f"⚠ {len(exploits)} olası exploit/zafiyet bulgusu — sonuç sayfasından doğrulama isteyebilirsiniz.",
+            level="warning",
+        )
+
+
+def _run_simple_module(scan_id: int, choice: str, domain: str, raw_input: str, config: dict) -> str:
     if choice == "2":
-        return tools.run_subfinder(domain, config.get("subdomainParams", []))
-    if choice == "3":
-        return tools.run_wayback(
-            domain,
-            known_urls=config.get("waybackKnownUrls", False),
-            include_subdomains=config.get("includeSubdomains", False),
-        )
-    if choice == "4":
-        match_codes = validate_status_codes(config.get("httpxMatchCodes", ""))
-        return tools.run_httpx(
-            domain,
-            follow_redirects=config.get("httpxFollowRedirects", False),
-            show_status=config.get("httpxStatusCode", False),
-            match_codes=match_codes,
-        )
-    if choice == "5":
-        templates = validate_template_ids(config.get("nucleiTemplates", ""))
-        return tools.run_nuclei(
-            domain,
-            raw_input,
-            templates,
-            config.get("nucleiSeverity", []),
-        )
+        return tools.run_subfinder(scan_id, domain, config.get("subdomainParams", []))
     if choice == "6":
-        return tools.run_dnsx(domain)
-    if choice == "7":
-        depth = str(config.get("katanaDepth", "2"))
-        return tools.run_katana(domain, depth)
+        return tools.run_dnsx(scan_id, domain)
     return ""
 
 
@@ -191,15 +260,18 @@ def scan_to_context(scan: Scan) -> dict:
         "domain": scan.domain,
         "scan": scan,
         "naabu_output": "",
+        "nmap_output": "",
         "subdomain_output": "",
         "wayback_output": "",
         "httpx_output": "",
         "nuclei_output": "",
         "dnsx_output": "",
         "katana_output": "",
+        "exploit_suggestions": (scan.config or {}).get("nmap_exploit_suggestions", []),
     }
     key_map = {
         "naabu": "naabu_output",
+        "nmap": "nmap_output",
         "subdomain": "subdomain_output",
         "wayback": "wayback_output",
         "httpx": "httpx_output",

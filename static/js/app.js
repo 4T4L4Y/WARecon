@@ -44,8 +44,10 @@ function applyPreset(preset) {
 
 function fetchNucleiDataAndRenderChart(domain) {
   if (!domain) return;
+  const scanId = document.body.dataset.scanId;
+  const url = scanId ? `/scan/${scanId}/nuclei.json` : `/outputs/${domain}_nuclei.json/json`;
 
-  fetch(`/outputs/${domain}_nuclei.json/json`)
+  fetch(url)
     .then((response) => {
       if (!response.ok) throw new Error('No nuclei data');
       return response.json();

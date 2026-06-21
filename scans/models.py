@@ -30,6 +30,7 @@ class Scan(models.Model):
     progress_message = models.CharField(max_length=255, blank=True)
     progress_percent = models.PositiveSmallIntegerField(default=0)
     error_message = models.TextField(blank=True)
+    is_archived = models.BooleanField(default=False, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)
 
@@ -47,6 +48,7 @@ class Scan(models.Model):
         "5": "Nuclei",
         "6": "DNS",
         "7": "Katana",
+        "8": "Nmap",
     }
 
     @property
@@ -90,6 +92,7 @@ class ScanModuleResult(models.Model):
         NUCLEI = "nuclei", "Nuclei"
         DNSX = "dnsx", "DNS Kayıtları"
         KATANA = "katana", "Web Crawl"
+        NMAP = "nmap", "Nmap Servis"
 
     scan = models.ForeignKey(Scan, on_delete=models.CASCADE, related_name="results")
     module = models.CharField(max_length=32, choices=Module.choices)

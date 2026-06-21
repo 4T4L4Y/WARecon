@@ -14,6 +14,38 @@
   color: rgba(255, 255, 255, 0.85);
 }
 
+.result-output-rich {
+  max-height: 420px;
+  overflow: auto;
+  padding: 0.75rem;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.4285rem;
+}
+
+.output-rich .output-line {
+  padding: 0.2rem 0.35rem;
+  border-radius: 3px;
+  font-family: SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.output-host { color: #00f2c3; font-weight: 600; }
+.output-port.open { color: #fd5d93; font-weight: 700; }
+.output-sep { color: rgba(255,255,255,0.4); }
+.output-danger, .sev-critical { color: #fd5d93; }
+.output-success { color: #00f2c3; }
+.output-header { color: #1d8cf8; font-weight: 600; }
+.status-2xx { color: #00f2c3; }
+.status-3xx { color: #11cdef; }
+.status-4xx { color: #ffd600; }
+.status-5xx { color: #fd5d93; }
+.sev-high { color: #fb6340; }
+.sev-medium { color: #ffd600; }
+.sev-low { color: #00f2c3; }
+.sev-info { color: #1d8cf8; }
+
 .chart-wrap {
   position: relative;
   height: 280px;

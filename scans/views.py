@@ -358,11 +358,10 @@ def nuclei_templates_api(request):
 @login_required_basic
 @require_GET
 def notifications_api(request):
-    items = ScanNotification.objects.filter(
-        user=request.user, is_read=False,
-    )[:30]
+    unread = ScanNotification.objects.filter(user=request.user, is_read=False)
+    items = ScanNotification.objects.filter(user=request.user).order_by("-created_at")[:20]
     return JsonResponse({
-        "count": ScanNotification.objects.filter(user=request.user, is_read=False).count(),
+        "count": unread.count(),
         "items": [
             {
                 "id": n.id,
@@ -371,6 +370,7 @@ def notifications_api(request):
                 "level": n.level,
                 "scan_id": n.scan_id,
                 "time": n.created_at.strftime("%d.%m %H:%M"),
+                "is_read": n.is_read,
             }
             for n in items
         ],

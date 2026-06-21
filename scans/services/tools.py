@@ -1,9 +1,14 @@
-import re
 from pathlib import Path
-
 from .live_log import log_activity
 from .output_paths import list_subdomains, read_combined, read_file, safe_name, scan_output_dir
-from .output_utils import normalize_tool_output, prepare_url_input_file, strip_ansi, write_url_list
+from .output_utils import (
+    extract_urls_from_text,
+    normalize_tool_output,
+    parse_httpx_tech_tags,
+    prepare_url_input_file,
+    strip_ansi,
+    write_url_list,
+)
 from .runner import run_command
 
 
@@ -68,6 +73,29 @@ def run_wayback_host(
     return normalize_tool_output(read_file(out))
 
 
+def run_uro_dedupe(scan_id: int, host: str, input_file: Path) -> Path:
+    """Wayback URL listesini URO ile tekilleştirir / sadeleştirir."""
+    lines = _non_empty_lines(input_file)
+    if not lines:
+        return input_file
+    scan_dir = input_file.parent
+    out = _target_file(scan_dir, host, "_wayback_uro.txt")
+    if out.exists():
+        out.unlink()
+    before = len(lines)
+    log_activity(f"URO: {host} ({before} URL)")
+    code = run_command(["uro", "-i", str(input_file), "-o", str(out)])
+    if code != 0 or not out.is_file() or out.stat().st_size == 0:
+        log_activity(
+            f"{host}: URO kullanılamadı — ham Wayback listesi kullanılıyor",
+            level="warning",
+        )
+        return input_file
+    after = len(_non_empty_lines(out))
+    log_activity(f"{host}: URO {before} → {after} URL", level="info")
+    return out
+
+
 def run_httpx_on_list(
     scan_id: int,
     host: str,
@@ -76,6 +104,7 @@ def run_httpx_on_list(
     follow_redirects: bool = False,
     show_status: bool = False,
     match_codes: str = "",
+    tech_detect: bool = False,
 ) -> str:
     scan_dir = scan_output_dir(scan_id)
     out = _target_file(scan_dir, host, "_httpx.txt")
@@ -86,6 +115,8 @@ def run_httpx_on_list(
         base.append("-sc")
     if match_codes:
         base.extend(["-mc", match_codes])
+    if tech_detect:
+        base.append("-td")
     run_command([*base, "-l", str(input_file), "-o", str(out)])
     return normalize_tool_output(read_file(out))
 
@@ -148,50 +179,6 @@ def run_katana_on_target(
     return normalize_tool_output(read_file(out))
 
 
-def parse_whatweb_tags(raw: str) -> list[str]:
-    import json
-
-    tags: set[str] = set()
-    text = raw.strip()
-    if not text:
-        return []
-    try:
-        data = json.loads(text)
-        entries = data if isinstance(data, list) else [data]
-        for entry in entries:
-            plugins = entry.get("plugins") or {}
-            for name in plugins:
-                tag = name.lower().replace(" ", "-").replace("_", "-")
-                if tag and len(tag) < 40:
-                    tags.add(tag)
-    except json.JSONDecodeError:
-        for line in text.splitlines():
-            for part in re.findall(r"\[([^\]]+)\]", line):
-                tag = part.lower().replace(" ", "-")
-                if tag:
-                    tags.add(tag)
-    return sorted(tags)[:25]
-
-
-def run_whatweb_on_target(scan_id: int, host: str, url: str) -> tuple[str, list[str]]:
-    scan_dir = scan_output_dir(scan_id)
-    out = _target_file(scan_dir, host, "_whatweb.txt")
-    json_out = _target_file(scan_dir, host, "_whatweb.json")
-    args = ["whatweb", "--color=never", "--log-json=-", url]
-    log_activity(f"WhatWeb: {host}")
-    run_command(args, output_file=json_out)
-    raw = read_file(json_out)
-    if not raw.strip():
-        run_command(["whatweb", "--color=never", url], output_file=out)
-        raw = read_file(out)
-    else:
-        out.write_text(raw, encoding="utf-8")
-    tags = parse_whatweb_tags(raw)
-    if tags:
-        log_activity(f"{host}: WhatWeb etiketleri → {', '.join(tags[:8])}", level="info")
-    return normalize_tool_output(raw), tags
-
-
 def run_per_subdomain_web_pipeline(
     scan_id: int,
     domain: str,
@@ -213,12 +200,12 @@ def run_per_subdomain_web_pipeline(
     httpx_all: list[str] = []
     nuclei_all: list[str] = []
     katana_all: list[str] = []
-    whatweb_all: list[str] = []
 
     httpx_opts = {
         "follow_redirects": config.get("httpxFollowRedirects", False),
         "show_status": config.get("httpxStatusCode", False),
         "match_codes": config.get("httpxMatchCodes", ""),
+        "tech_detect": run_nuclei,
     }
     templates = config.get("nucleiTemplates", "")
     template_ids = config.get("nucleiTemplateIds") or []
@@ -255,8 +242,10 @@ def run_per_subdomain_web_pipeline(
             wb = ""
 
         if wb.strip():
-            target_file = wayback_path
-            log_activity(f"{host}: Wayback URL'leri kullanılıyor ({len(_non_empty_lines(wayback_path))} satır)")
+            target_file = run_uro_dedupe(scan_id, host, wayback_path)
+            log_activity(
+                f"{host}: Wayback URL'leri kullanılıyor ({len(_non_empty_lines(target_file))} satır)",
+            )
         else:
             target_file = _url_list_file(scan_dir, host, "_targets.txt", f"https://{host}")
             log_activity(f"{host}: Wayback boş — doğrudan host hedefleniyor")
@@ -272,22 +261,16 @@ def run_per_subdomain_web_pipeline(
             hx = ""
 
         nuclei_input = httpx_path if hx.strip() and httpx_path.is_file() else target_file
-        whatweb_tags: list[str] = []
-        if run_nuclei:
-            primary_url = f"https://{host}"
-            if hx.strip():
-                from scans.services.output_utils import extract_urls_from_text
-
-                urls = extract_urls_from_text(hx)
-                if urls:
-                    primary_url = urls[0]
-            ww_text, whatweb_tags = run_whatweb_on_target(scan_id, host, primary_url)
-            if ww_text.strip():
-                whatweb_all.append(f"=== {host} ===\n{ww_text}")
+        httpx_tags = parse_httpx_tech_tags(hx) if hx.strip() else []
+        if httpx_tags:
+            log_activity(
+                f"{host}: HTTPX teknolojileri → {', '.join(httpx_tags[:8])}",
+                level="info",
+            )
 
         if run_nuclei:
             nu = run_nuclei_on_list(
-                scan_id, host, nuclei_input, templates, severities, tags=whatweb_tags,
+                scan_id, host, nuclei_input, templates, severities, tags=httpx_tags,
             )
             if nu.strip():
                 nuclei_all.append(f"=== {host} ===\n{nu}")
@@ -305,7 +288,6 @@ def run_per_subdomain_web_pipeline(
         "httpx": "\n".join(httpx_all),
         "nuclei": "\n".join(nuclei_all),
         "katana": "\n".join(katana_all),
-        "whatweb": "\n".join(whatweb_all),
     }
 
 

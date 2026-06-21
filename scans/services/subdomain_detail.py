@@ -14,7 +14,6 @@ HOST_SUFFIXES = {
     "httpx": "_httpx.txt",
     "nuclei": "_nuclei.txt",
     "katana": "_katana.txt",
-    "whatweb": "_whatweb.txt",
 }
 
 MODULE_FMT = {
@@ -22,7 +21,6 @@ MODULE_FMT = {
     "httpx": "httpx",
     "nuclei": "nuclei",
     "katana": "katana",
-    "whatweb": "whatweb",
 }
 
 
@@ -78,8 +76,6 @@ def host_results_context(scan: Scan, host: str | None) -> dict:
         keys.append("nuclei")
     if "7" in modules and web_flags.get("katana", True):
         keys.append("katana")
-    if "5" in modules:
-        keys.append("whatweb")
 
     panels = []
     for key in keys:
@@ -87,7 +83,7 @@ def host_results_context(scan: Scan, host: str | None) -> dict:
         fmt = MODULE_FMT[key]
         panels.append({
             "key": key,
-            "label": key.upper() if key != "whatweb" else "WhatWeb",
+            "label": key.upper(),
             "raw": raw,
             "html": mark_safe(format_module_output(raw, fmt)),
             "is_empty": not raw.strip(),

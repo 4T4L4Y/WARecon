@@ -84,6 +84,19 @@ class FormatterTest(TestCase):
         urls = extract_urls_from_text(text)
         self.assertEqual(urls, ["https://beymen.com"])
 
+    def test_parse_httpx_tech_tags(self):
+        from scans.services.output_utils import parse_httpx_tech_tags
+
+        text = (
+            "https://example.com [200] [Cloudflare]\n"
+            "https://docs.example.com [200] [HackerOne] [Gatsby,React,webpack]\n"
+        )
+        tags = parse_httpx_tech_tags(text)
+        self.assertIn("cloudflare", tags)
+        self.assertIn("gatsby", tags)
+        self.assertIn("react", tags)
+        self.assertIn("webpack", tags)
+
 
 class SubdomainSelectionTest(TestCase):
     def setUp(self):

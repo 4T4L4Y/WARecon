@@ -5,6 +5,8 @@ from .output_paths import read_file
 
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 URL_LINE_RE = re.compile(r"^(https?://\S+)")
+BRACKET_RE = re.compile(r"\[([^\]]+)\]")
+STATUS_BRACKET_RE = re.compile(r"^[\d,\s]+$")
 
 
 def strip_ansi(text: str) -> str:
@@ -38,6 +40,31 @@ def extract_urls_from_text(text: str) -> list[str]:
                 seen.add(url)
                 urls.append(url)
     return urls
+
+
+def parse_httpx_tech_tags(text: str) -> list[str]:
+    """HTTPX -td çıktısından teknoloji etiketlerini çıkar (Nuclei -tags için)."""
+    tags: set[str] = set()
+    for raw in text.splitlines():
+        line = strip_ansi(raw).strip()
+        if not line or line.startswith("==="):
+            continue
+        brackets = BRACKET_RE.findall(line)
+        if not brackets:
+            continue
+        remaining = [
+            part.strip()
+            for part in brackets
+            if part.strip() and not STATUS_BRACKET_RE.match(part.strip())
+        ]
+        if not remaining:
+            continue
+        tech_part = remaining[-1]
+        for piece in tech_part.split(","):
+            tag = piece.strip().lower().replace(" ", "-").replace("_", "-")
+            if tag and len(tag) < 40:
+                tags.add(tag)
+    return sorted(tags)[:25]
 
 
 def write_url_list(path: Path, urls: list[str]) -> Path:

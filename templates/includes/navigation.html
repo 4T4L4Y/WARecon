@@ -26,11 +26,26 @@
           </span>
         </li>
         {% if user.is_authenticated %}
-        <li class="nav-item d-none d-lg-flex mr-2 position-relative">
-          <a href="#" class="nav-link" id="notificationBell" title="Bildirimler">
+        <li class="dropdown nav-item d-none d-lg-flex mr-2 position-relative">
+          <a href="#" class="dropdown-toggle nav-link" id="notificationBell" data-toggle="dropdown"
+             aria-haspopup="true" aria-expanded="false" title="Bildirimler">
             <i class="tim-icons icon-bell-55"></i>
             <span class="badge badge-danger nav-notification-badge d-none" id="notificationCount">0</span>
           </a>
+          <ul class="dropdown-menu dropdown-menu-right dropdown-navbar notification-dropdown"
+              id="notificationDropdown" aria-labelledby="notificationBell">
+            <li class="dropdown-header text-white px-3 py-2">Bildirimler</li>
+            <li id="notificationList" class="notification-list">
+              <span class="dropdown-item text-muted disabled">Yükleniyor…</span>
+            </li>
+            <li class="dropdown-divider"></li>
+            <li class="nav-link mb-0">
+              <a href="{% url 'scans:notification_settings' %}" class="nav-item dropdown-item">Bildirim Ayarları</a>
+            </li>
+            <li class="nav-link mb-0">
+              <a href="{% url 'scans:history' %}" class="nav-item dropdown-item">Tümünü gör</a>
+            </li>
+          </ul>
         </li>
         <li class="dropdown nav-item">
           <a href="#" class="dropdown-toggle nav-link" data-toggle="dropdown">

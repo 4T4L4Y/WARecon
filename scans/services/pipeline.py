@@ -57,7 +57,6 @@ OUTPUT_SUFFIX = {
     ScanModuleResult.Module.DNSX: "_dnsx.txt",
     ScanModuleResult.Module.KATANA: "_katana.txt",
     ScanModuleResult.Module.NMAP: "_nmap.txt",
-    ScanModuleResult.Module.WHATWEB: "_whatweb.txt",
 }
 
 RESULT_KEY_TO_MODULE = {
@@ -66,7 +65,6 @@ RESULT_KEY_TO_MODULE = {
     "wayback_output": "wayback",
     "httpx_output": "httpx",
     "katana_output": "katana",
-    "whatweb_output": "whatweb",
     "naabu_output": "naabu",
     "nmap_output": "nmap",
     "nuclei_output": "nuclei",
@@ -362,16 +360,11 @@ def _persist_web_outputs(scan: Scan, ordered: list[str], outputs: dict[str, str]
         "httpx": (ScanModuleResult.Module.HTTPX, "4"),
         "nuclei": (ScanModuleResult.Module.NUCLEI, "5"),
         "katana": (ScanModuleResult.Module.KATANA, "7"),
-        "whatweb": (ScanModuleResult.Module.WHATWEB, "5"),
     }
     for key, (module, choice_id) in mapping.items():
         if choice_id not in ordered:
             continue
-        if key == "whatweb" and "5" not in ordered:
-            continue
         text = outputs.get(key, "")
-        if key == "whatweb" and not text.strip():
-            continue
         filename = f"{scan.domain}{OUTPUT_SUFFIX[module]}"
         _save_module_result(scan, module, text, filename)
         lines = len([ln for ln in text.splitlines() if ln.strip()])
@@ -494,7 +487,6 @@ def _collect_web_outputs_from_disk(scan: Scan, hosts: list[str]) -> dict[str, st
         "httpx": "_httpx.txt",
         "nuclei": "_nuclei.txt",
         "katana": "_katana.txt",
-        "whatweb": "_whatweb.txt",
     }
     for host in hosts:
         safe = safe_name(host)
@@ -520,7 +512,6 @@ def scan_to_context(scan: Scan) -> dict:
         "nuclei_output": "",
         "dnsx_output": "",
         "katana_output": "",
-        "whatweb_output": "",
         "exploit_suggestions": (scan.config or {}).get("nmap_exploit_suggestions", []),
         "enabled_modules": set(scan.modules or []),
     }
@@ -533,7 +524,6 @@ def scan_to_context(scan: Scan) -> dict:
         "nuclei": "nuclei_output",
         "dnsx": "dnsx_output",
         "katana": "katana_output",
-        "whatweb": "whatweb_output",
     }
     for result in scan.results.all():
         key = key_map.get(result.module)
@@ -561,15 +551,11 @@ def _result_tabs(scan: Scan, context: dict) -> list[dict]:
         ("1", "naabu_output", "Port", "naabu", "icon-spaceship"),
         ("8", "nmap_output", "Nmap", "nmap", "icon-zoom-split"),
         ("5", "nuclei_output", "Nuclei", "nuclei", "icon-lock-circle"),
-        ("5w", "whatweb_output", "WhatWeb", "whatweb", "icon-settings-gear-63"),
     ]
     result = []
     modules = set(scan.modules or [])
     for choice, key, label, fmt, icon in tabs:
-        if choice == "5w":
-            if "5" not in modules:
-                continue
-        elif choice not in modules and not (choice == "8" and "1" in modules):
+        if choice not in modules and not (choice == "8" and "1" in modules):
             continue
         raw = context.get(key, "")
         result.append({

@@ -282,6 +282,21 @@ body.login-page .card-header {
   background: rgba(29, 140, 248, 0.15);
   border-left: 3px solid #1d8cf8;
 }
+.selection-list-panel {
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.4285rem;
+  padding: 0.75rem 1rem;
+  background: rgba(0, 0, 0, 0.2);
+}
+.selection-list-item {
+  padding: 0.35rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.selection-list-item:last-child {
+  border-bottom: none;
+}
 .nav-notification-badge {
   position: absolute;
   top: 2px;

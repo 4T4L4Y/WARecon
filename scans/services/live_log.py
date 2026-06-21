@@ -45,6 +45,12 @@ def module_status_for_scan(scan) -> list[dict]:
             if choice in WEB_MODULE_IDS:
                 return "pending"
             return "pending"
+        if scan.status == scan.Status.AWAITING_PORT_SELECTION:
+            if module_key == ScanModuleResult.Module.NAABU:
+                return "done"
+            if choice in ("1", "8") or module_key == ScanModuleResult.Module.NMAP:
+                return "pending"
+            return "pending"
         if scan.status == scan.Status.RUNNING and (
             choice == scan.current_module
             or (scan.current_module == "web" and choice in WEB_MODULE_IDS)

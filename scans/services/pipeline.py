@@ -154,6 +154,10 @@ def create_scan(user, form_data: dict) -> Scan:
         "completed_steps": [],
         "discovered_subdomains": [],
         "selected_subdomains": [],
+        "discovered_ports": [],
+        "selected_ports": [],
+        "port_selection_done": False,
+        "run_nmap": True,
     }
     template_ids = config.get("nucleiTemplateIds") or []
     if template_ids:
@@ -181,6 +185,7 @@ def execute_scan(scan_id: int) -> None:
         Scan.Status.PENDING,
         Scan.Status.RUNNING,
         Scan.Status.AWAITING_SUBDOMAIN_SELECTION,
+        Scan.Status.AWAITING_PORT_SELECTION,
     ):
         return
     if scan.cancel_requested:
@@ -188,7 +193,10 @@ def execute_scan(scan_id: int) -> None:
 
     config = dict(scan.config or {})
     completed = set(config.get("completed_steps", []))
-    was_awaiting = scan.status == Scan.Status.AWAITING_SUBDOMAIN_SELECTION
+    was_awaiting = scan.status in (
+        Scan.Status.AWAITING_SUBDOMAIN_SELECTION,
+        Scan.Status.AWAITING_PORT_SELECTION,
+    )
 
     if not was_awaiting:
         scan.status = Scan.Status.RUNNING
@@ -197,7 +205,10 @@ def execute_scan(scan_id: int) -> None:
 
     log_token = bind_scan_log(scan_id)
     if was_awaiting:
-        log_activity("Alt alan seçimi alındı — tarama devam ediyor.", level="info")
+        if scan.status == Scan.Status.AWAITING_SUBDOMAIN_SELECTION:
+            log_activity("Alt alan seçimi alındı — tarama devam ediyor.", level="info")
+        else:
+            log_activity("Port seçimi alındı — tarama devam ediyor.", level="info")
     else:
         log_activity("Tarama worker tarafından başlatıldı.", level="info")
 
@@ -281,7 +292,14 @@ def execute_scan(scan_id: int) -> None:
                 config = dict(scan.config or config)
                 _persist_web_outputs(scan, ordered, outputs)
             elif step == "1":
-                _run_naabu_nmap_phase(scan, config)
+                paused = _run_naabu_nmap_phase(scan, config)
+                if paused:
+                    config["completed_steps"] = list(completed)
+                    scan.config = config
+                    scan.save(update_fields=["config"])
+                    reset_scan_log(module_token)
+                    reset_scan_log(log_token)
+                    return
                 step_index += 1
             else:
                 output_text = _run_simple_module(scan_id, step, domain, config)
@@ -378,34 +396,75 @@ def _persist_web_outputs(scan: Scan, ordered: list[str], outputs: dict[str, str]
         )
 
 
-def _run_naabu_nmap_phase(scan: Scan, config: dict) -> None:
-    ports = validate_ports(config.get("naabuPorts", ""))
-    naabu_out = tools.run_naabu(scan.pk, scan.domain, ports)
-    _save_module_result(
-        scan,
-        ScanModuleResult.Module.NAABU,
-        naabu_out,
-        f"{scan.domain}_naabu.txt",
-    )
-
-    scan.update_progress("8", "Nmap servis taraması…", scan.progress_percent)
-    log_activity("▶ Nmap: açık portlar taranıyor…", level="info", module="8")
-    nmap_out, exploits = tools.run_nmap_on_naabu(scan.pk, scan.domain, naabu_out)
-    config["nmap_exploit_suggestions"] = exploits
-    scan.config = config
-    scan.save(update_fields=["config"])
-
-    _save_module_result(
-        scan,
-        ScanModuleResult.Module.NMAP,
-        nmap_out,
-        f"{scan.domain}_nmap.txt",
-    )
-    if exploits:
-        log_activity(
-            f"⚠ {len(exploits)} olası exploit/zafiyet bulgusu.",
-            level="warning",
+def _run_naabu_nmap_phase(scan: Scan, config: dict) -> bool:
+    """Naabu çalıştırır; gerekirse port seçimi için duraklatır. True = duraklatıldı."""
+    naabu_result = scan.results.filter(module=ScanModuleResult.Module.NAABU).first()
+    if naabu_result and (naabu_result.output or "").strip():
+        naabu_out = strip_html_output(naabu_result.output)
+    else:
+        ports = validate_ports(config.get("naabuPorts", ""))
+        scan.update_progress("1", "Port taraması (Naabu)…", scan.progress_percent)
+        log_activity("▶ Naabu port taraması başlatılıyor…", level="info", module="1")
+        naabu_out = tools.run_naabu(scan.pk, scan.domain, ports)
+        _save_module_result(
+            scan,
+            ScanModuleResult.Module.NAABU,
+            naabu_out,
+            f"{scan.domain}_naabu.txt",
         )
+
+    if not config.get("port_selection_done"):
+        discovered = tools.naabu_ports_flat(naabu_out)
+        config["discovered_ports"] = discovered
+        if discovered:
+            scan.config = config
+            scan.status = Scan.Status.AWAITING_PORT_SELECTION
+            scan.progress_message = f"{len(discovered)} açık port bulundu — seçim bekleniyor."
+            scan.save(update_fields=["config", "status", "progress_message"])
+            log_activity(
+                f"{len(discovered)} açık port bulundu. Nmap için port seçimi bekleniyor.",
+                level="warning",
+            )
+            return True
+        config["port_selection_done"] = True
+        config["run_nmap"] = False
+        config["selected_ports"] = []
+
+    if config.get("run_nmap", True) and config.get("selected_ports"):
+        selected = set(config.get("selected_ports") or [])
+        scan.update_progress("8", "Nmap servis taraması…", scan.progress_percent)
+        log_activity(
+            f"▶ Nmap: {len(selected)} port taranıyor…",
+            level="info",
+            module="8",
+        )
+        nmap_out, exploits = tools.run_nmap_on_naabu(
+            scan.pk, scan.domain, naabu_out, selected_ports=selected,
+        )
+        config["nmap_exploit_suggestions"] = exploits
+        scan.config = config
+        scan.save(update_fields=["config"])
+        _save_module_result(
+            scan,
+            ScanModuleResult.Module.NMAP,
+            nmap_out,
+            f"{scan.domain}_nmap.txt",
+        )
+        if exploits:
+            log_activity(
+                f"⚠ {len(exploits)} olası exploit/zafiyet bulgusu.",
+                level="warning",
+            )
+    else:
+        log_activity("Nmap atlandı — seçilen port yok veya kullanıcı devre dışı bıraktı.", level="warning")
+        _save_module_result(
+            scan,
+            ScanModuleResult.Module.NMAP,
+            "",
+            f"{scan.domain}_nmap.txt",
+        )
+
+    return False
 
 
 def _run_simple_module(scan_id: int, choice: str, domain: str, config: dict) -> str:
@@ -434,6 +493,26 @@ def apply_subdomain_selection(
     scan.config = config
     scan.status = Scan.Status.RUNNING
     scan.progress_message = "Seçilen alt alanlar taranıyor…"
+    scan.save(update_fields=["config", "status", "progress_message"])
+
+
+def apply_port_selection(
+    scan: Scan,
+    selected_ports: list[str],
+    *,
+    run_nmap: bool,
+) -> None:
+    config = dict(scan.config or {})
+    config["selected_ports"] = selected_ports
+    config["run_nmap"] = run_nmap and bool(selected_ports)
+    config["port_selection_done"] = True
+    scan.config = config
+    scan.status = Scan.Status.RUNNING
+    scan.progress_message = (
+        f"Nmap: {len(selected_ports)} port taranacak…"
+        if config["run_nmap"]
+        else "Nmap atlandı — tarama devam ediyor…"
+    )
     scan.save(update_fields=["config", "status", "progress_message"])
 
 

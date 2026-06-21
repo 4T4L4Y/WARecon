@@ -20,7 +20,12 @@ from .tasks import cancel_rq_job
 from .models import Scan, ScanLog, ScanNotification, UserProfile
 from .services.live_log import module_status_for_scan
 from .services.output_paths import cleanup_scan_outputs, scan_output_dir
-from .services.pipeline import apply_subdomain_selection, create_scan, scan_to_context
+from .services.pipeline import (
+    apply_port_selection,
+    apply_subdomain_selection,
+    create_scan,
+    scan_to_context,
+)
 from .services.reports import render_html_report, render_pdf_report
 from scans.services import tools
 from .tasks import enqueue_continue_scan, enqueue_scan
@@ -225,6 +230,76 @@ def select_subdomains(request, pk: int):
         "hosts": hosts,
         "web_flags": web_flags,
     })
+
+
+def _subdomain_web_flags(scan: Scan) -> dict:
+    modules = set(scan.modules or [])
+    return {
+        "wayback": "3" in modules,
+        "httpx": "4" in modules,
+        "nuclei": "5" in modules,
+        "katana": "7" in modules,
+    }
+
+
+@login_required_basic
+@require_http_methods(["GET", "POST"])
+def subdomain_selection_api(request, pk: int):
+    scan = get_object_or_404(_user_scans(request.user), pk=pk)
+    if scan.status != Scan.Status.AWAITING_SUBDOMAIN_SELECTION:
+        return JsonResponse({"ok": False, "error": "Alt alan seçimi beklenmiyor."}, status=400)
+
+    config = scan.config or {}
+    hosts = config.get("discovered_subdomains") or []
+    web_flags = _subdomain_web_flags(scan)
+
+    if request.method == "GET":
+        return JsonResponse({"ok": True, "hosts": hosts, "web_flags": web_flags})
+
+    selected = request.POST.getlist("subdomains")
+    if not selected:
+        return JsonResponse({"ok": False, "error": "En az bir alt alan seçmelisiniz."}, status=400)
+
+    run_wayback = web_flags["wayback"] and "run_wayback" in request.POST
+    run_httpx = web_flags["httpx"] and "run_httpx" in request.POST
+    run_nuclei = web_flags["nuclei"] and "run_nuclei" in request.POST
+    run_katana = web_flags["katana"] and "run_katana" in request.POST
+    if not any((run_wayback, run_httpx, run_nuclei, run_katana)):
+        return JsonResponse({"ok": False, "error": "En az bir web modülü seçmelisiniz."}, status=400)
+
+    apply_subdomain_selection(
+        scan,
+        selected,
+        run_wayback=run_wayback,
+        run_httpx=run_httpx,
+        run_nuclei=run_nuclei,
+        run_katana=run_katana,
+    )
+    enqueue_continue_scan(scan.pk)
+    return JsonResponse({"ok": True, "count": len(selected)})
+
+
+@login_required_basic
+@require_http_methods(["GET", "POST"])
+def port_selection_api(request, pk: int):
+    scan = get_object_or_404(_user_scans(request.user), pk=pk)
+    if scan.status != Scan.Status.AWAITING_PORT_SELECTION:
+        return JsonResponse({"ok": False, "error": "Port seçimi beklenmiyor."}, status=400)
+
+    config = scan.config or {}
+    ports = config.get("discovered_ports") or []
+
+    if request.method == "GET":
+        return JsonResponse({"ok": True, "ports": ports})
+
+    selected = request.POST.getlist("ports")
+    run_nmap = "run_nmap" in request.POST
+    if run_nmap and not selected:
+        return JsonResponse({"ok": False, "error": "Nmap için en az bir port seçin."}, status=400)
+
+    apply_port_selection(scan, selected, run_nmap=run_nmap)
+    enqueue_continue_scan(scan.pk)
+    return JsonResponse({"ok": True, "count": len(selected), "run_nmap": run_nmap})
 
 
 @login_required_basic

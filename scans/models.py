@@ -8,6 +8,7 @@ class Scan(models.Model):
         PENDING = "pending", "Bekliyor"
         RUNNING = "running", "Çalışıyor"
         AWAITING_SUBDOMAIN_SELECTION = "awaiting_subdomains", "Alt Alan Seçimi"
+        AWAITING_PORT_SELECTION = "awaiting_ports", "Port Seçimi"
         CANCELLED = "cancelled", "İptal Edildi"
         COMPLETED = "completed", "Tamamlandı"
         FAILED = "failed", "Başarısız"

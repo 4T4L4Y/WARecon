@@ -98,6 +98,26 @@ class FormatterTest(TestCase):
         self.assertIn("webpack", tags)
 
 
+    def test_naabu_ports_flat(self):
+        from scans.services import tools
+
+        items = tools.naabu_ports_flat("a.com:80\na.com:443\nb.com:22\n")
+        self.assertEqual(len(items), 3)
+        self.assertEqual(items[0]["id"], "a.com:80")
+
+    def test_apply_port_selection(self):
+        from scans.services.pipeline import apply_port_selection
+
+        user = get_user_model().objects.create_user(username="portuser", password="pass12345")
+        scan = create_scan(user, {"domain": "example.com", "choices": ["1"]})
+        apply_port_selection(scan, ["example.com:443", "example.com:80"], run_nmap=True)
+        scan.refresh_from_db()
+        self.assertTrue(scan.config["port_selection_done"])
+        self.assertEqual(len(scan.config["selected_ports"]), 2)
+        self.assertTrue(scan.config["run_nmap"])
+        self.assertEqual(scan.status, Scan.Status.RUNNING)
+
+
 class SubdomainSelectionTest(TestCase):
     def setUp(self):
         user = get_user_model().objects.create_user(username="seluser", password="pass12345")

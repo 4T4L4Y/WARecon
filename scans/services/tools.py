@@ -398,11 +398,40 @@ def parse_naabu_ports(naabu_text: str) -> dict[str, set[str]]:
     return ports_by_host
 
 
-def run_nmap_on_naabu(scan_id: int, domain: str, naabu_text: str) -> tuple[str, list[dict]]:
+def naabu_ports_flat(naabu_text: str) -> list[dict]:
+    """Naabu çıktısını seçim listesi için düzleştir."""
+    items: list[dict] = []
+    for host, ports in sorted(parse_naabu_ports(naabu_text).items()):
+        for port in sorted(ports, key=int):
+            items.append({
+                "id": f"{host}:{port}",
+                "host": host,
+                "port": port,
+            })
+    return items
+
+
+def run_nmap_on_naabu(
+    scan_id: int,
+    domain: str,
+    naabu_text: str,
+    *,
+    selected_ports: set[str] | None = None,
+) -> tuple[str, list[dict]]:
     from .formatters import parse_nmap_exploits
 
     scan_dir = scan_output_dir(scan_id)
     ports_map = parse_naabu_ports(naabu_text)
+    if selected_ports is not None:
+        filtered: dict[str, set[str]] = {}
+        for host, ports in ports_map.items():
+            kept = {
+                p for p in ports
+                if f"{host}:{p}" in selected_ports
+            }
+            if kept:
+                filtered[host] = kept
+        ports_map = filtered
     if not ports_map:
         log_activity("Nmap: Naabu açık port bulamadı.", level="warning")
         return "", []

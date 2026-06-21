@@ -65,13 +65,15 @@
               <span class="badge badge-info">Çalışıyor</span>
               {% elif scan.status == 'awaiting_subdomains' %}
               <span class="badge badge-warning">Alt Alan Seçimi</span>
+              {% elif scan.status == 'awaiting_ports' %}
+              <span class="badge badge-warning">Port Seçimi</span>
               {% else %}
               <span class="badge badge-default">{{ scan.get_status_display }}</span>
               {% endif %}
             </td>
             <td class="text-muted">{{ scan.created_at|date:"d.m.Y H:i" }}</td>
             <td class="text-right text-nowrap">
-              {% if scan.status == 'running' or scan.status == 'awaiting_subdomains' or scan.status == 'pending' %}
+              {% if scan.status == 'running' or scan.status == 'awaiting_subdomains' or scan.status == 'awaiting_ports' or scan.status == 'pending' %}
               <a href="{% url 'scans:progress' scan.pk %}" class="btn btn-sm btn-info">Canlı İzleme</a>
               {% endif %}
               <a href="{% url 'scans:detail' scan.pk %}" class="btn btn-sm btn-primary">Görüntüle</a>

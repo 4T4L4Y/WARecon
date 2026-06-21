@@ -9,11 +9,15 @@
   </div>
   <div class="col-sm-6 text-sm-right">
     <span class="badge badge-info" id="statusBadge">{{ scan.get_status_display }}</span>
-    <div id="progressNavActions" class="mt-2{% if scan.status != 'completed' and scan.status != 'awaiting_subdomains' %} d-none{% endif %}">
-      <a href="{% url 'scans:select_subdomains' scan.pk %}" id="goSelectSubdomains"
+    <div id="progressNavActions" class="mt-2{% if scan.status != 'completed' and scan.status != 'awaiting_subdomains' and scan.status != 'awaiting_ports' %} d-none{% endif %}">
+      <button type="button" id="goSelectSubdomains"
          class="btn btn-sm btn-warning mb-1{% if scan.status != 'awaiting_subdomains' %} d-none{% endif %}">
         Alt Alan Seç
-      </a>
+      </button>
+      <button type="button" id="goSelectPorts"
+         class="btn btn-sm btn-warning mb-1{% if scan.status != 'awaiting_ports' %} d-none{% endif %}">
+        Port Seç (Nmap)
+      </button>
       <a href="{% url 'scans:detail' scan.pk %}" id="goResults"
          class="btn btn-sm btn-success mb-1{% if scan.status != 'completed' %} d-none{% endif %}">
         Sonuçlara Git
@@ -88,6 +92,93 @@
     </div>
   </div>
 </div>
+
+{# Alt alan seçim modalı #}
+<div class="modal fade" id="subdomainSelectModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+    <div class="modal-content bg-dark">
+      <div class="modal-header border-bottom border-secondary">
+        <h5 class="modal-title">Alt Alan Seçimi</h5>
+        <span class="badge badge-warning">Onay gerekli</span>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small">Wayback, HTTPX, Nuclei ve Katana için taranacak alt alanları seçin.</p>
+        <div class="d-flex flex-wrap align-items-center mb-3 gap-2">
+          <input type="search" class="form-control form-control-sm flex-grow-1" id="subdomainFilter"
+                 placeholder="Alt alan filtrele…" autocomplete="off">
+          <button type="button" class="btn btn-sm btn-outline-primary" id="subdomainSelectAll">Tümünü seç</button>
+          <button type="button" class="btn btn-sm btn-outline-default" id="subdomainClearAll">Temizle</button>
+        </div>
+        <div class="selection-list-panel" id="subdomainSelectList"></div>
+        <div id="webModuleToggles" class="mt-4">
+          <h6 class="text-primary mb-2">Web modülleri</h6>
+          <div class="row">
+            <div class="col-6 col-md-3 mb-2">
+              <div class="custom-control custom-checkbox">
+                <input class="custom-control-input" type="checkbox" name="run_wayback" id="run_wayback" checked>
+                <label class="custom-control-label" for="run_wayback">Wayback</label>
+              </div>
+            </div>
+            <div class="col-6 col-md-3 mb-2">
+              <div class="custom-control custom-checkbox">
+                <input class="custom-control-input" type="checkbox" name="run_httpx" id="run_httpx" checked>
+                <label class="custom-control-label" for="run_httpx">HTTPX</label>
+              </div>
+            </div>
+            <div class="col-6 col-md-3 mb-2">
+              <div class="custom-control custom-checkbox">
+                <input class="custom-control-input" type="checkbox" name="run_nuclei" id="run_nuclei" checked>
+                <label class="custom-control-label" for="run_nuclei">Nuclei</label>
+              </div>
+            </div>
+            <div class="col-6 col-md-3 mb-2">
+              <div class="custom-control custom-checkbox">
+                <input class="custom-control-input" type="checkbox" name="run_katana" id="run_katana" checked>
+                <label class="custom-control-label" for="run_katana">Katana</label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer border-top border-secondary">
+        <button type="button" class="btn btn-primary" id="subdomainSelectSubmit">
+          <i class="tim-icons icon-triangle-right-17 mr-1"></i>Seçilenlerle devam et
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# Port seçim modalı (Nmap) #}
+<div class="modal fade" id="portSelectModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+    <div class="modal-content bg-dark">
+      <div class="modal-header border-bottom border-secondary">
+        <h5 class="modal-title">Nmap Port Seçimi</h5>
+        <span class="badge badge-warning">Onay gerekli</span>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small">Naabu ile bulunan açık portlardan Nmap ile taranacakları seçin.</p>
+        <div class="custom-control custom-checkbox mb-3">
+          <input class="custom-control-input" type="checkbox" id="runNmapToggle" checked>
+          <label class="custom-control-label" for="runNmapToggle">Seçilen portlarda Nmap servis taraması yap</label>
+        </div>
+        <div class="d-flex flex-wrap align-items-center mb-3 gap-2">
+          <input type="search" class="form-control form-control-sm flex-grow-1" id="portFilter"
+                 placeholder="Host veya port filtrele…" autocomplete="off">
+          <button type="button" class="btn btn-sm btn-outline-primary" id="portSelectAll">Tümünü seç</button>
+          <button type="button" class="btn btn-sm btn-outline-default" id="portClearAll">Temizle</button>
+        </div>
+        <div class="selection-list-panel" id="portSelectList"></div>
+      </div>
+      <div class="modal-footer border-top border-secondary">
+        <button type="button" class="btn btn-primary" id="portSelectSubmit">
+          <i class="tim-icons icon-triangle-right-17 mr-1"></i>Devam et
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts_extra %}
@@ -97,9 +188,10 @@
   window.SCAN_ID = {{ scan.pk }};
   window.SCAN_EVENTS_URL = "{% url 'scans:events' scan.pk %}";
   window.SCAN_DETAIL_URL = "{% url 'scans:detail' scan.pk %}";
-  window.SCAN_CANCEL_URL = "{% url 'scans:cancel' scan.pk %}";
-  window.SCAN_SKIP_URL = "{% url 'scans:skip_module' scan.pk %}";
+  window.SCAN_SUBDOMAIN_API = "{% url 'scans:subdomain_selection_api' scan.pk %}";
+  window.SCAN_PORT_API = "{% url 'scans:port_selection_api' scan.pk %}";
 </script>
 <span id="initial-scan-status" data-status="{{ scan.status }}" class="d-none"></span>
+<script src="{% static 'js/selection-modal.js' %}"></script>
 <script src="{% static 'js/progress.js' %}"></script>
 {% endblock %}

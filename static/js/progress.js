@@ -58,12 +58,25 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!navActions) return;
     navActions.classList.remove('d-none');
     const selectBtn = document.getElementById('goSelectSubdomains');
+    const portBtn = document.getElementById('goSelectPorts');
     const resultsBtn = document.getElementById('goResults');
     if (selectBtn) {
       selectBtn.classList.toggle('d-none', status !== 'awaiting_subdomains');
     }
+    if (portBtn) {
+      portBtn.classList.toggle('d-none', status !== 'awaiting_ports');
+    }
     if (resultsBtn) {
       resultsBtn.classList.toggle('d-none', status !== 'completed');
+    }
+  }
+
+  function openSelectionModal(status) {
+    if (status === 'awaiting_subdomains' && window.openSubdomainSelectModal) {
+      window.openSubdomainSelectModal();
+    }
+    if (status === 'awaiting_ports' && window.openPortSelectModal) {
+      window.openPortSelectModal();
     }
   }
 
@@ -74,9 +87,16 @@ document.addEventListener('DOMContentLoaded', () => {
       msg.textContent = data.message || 'Alt alan seçimi bekleniyor…';
       showNavActions('awaiting_subdomains');
       source.close();
-      if (window.SCAN_SELECT_URL) {
-        setTimeout(() => { window.location.href = window.SCAN_SELECT_URL; }, 800);
-      }
+      setTimeout(() => openSelectionModal('awaiting_subdomains'), 400);
+      return;
+    }
+    if (data.status === 'awaiting_ports') {
+      badge.textContent = 'Port Seçimi';
+      badge.className = 'badge badge-warning';
+      msg.textContent = data.message || 'Nmap port seçimi bekleniyor…';
+      showNavActions('awaiting_ports');
+      source.close();
+      setTimeout(() => openSelectionModal('awaiting_ports'), 400);
       return;
     }
     if (data.status === 'completed') {
@@ -129,6 +149,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const initialStatus = document.getElementById('initial-scan-status');
   if (initialStatus) {
-    showNavActions(initialStatus.dataset.status);
+    const st = initialStatus.dataset.status;
+    showNavActions(st);
+    if (st === 'awaiting_subdomains' || st === 'awaiting_ports') {
+      setTimeout(() => openSelectionModal(st), 500);
+    }
   }
+
+  document.getElementById('goSelectSubdomains')?.addEventListener('click', () => {
+    openSelectionModal('awaiting_subdomains');
+  });
+  document.getElementById('goSelectPorts')?.addEventListener('click', () => {
+    openSelectionModal('awaiting_ports');
+  });
 });

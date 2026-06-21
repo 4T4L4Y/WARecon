@@ -1,17 +1,39 @@
-{% extends "base.html" %}
+{% extends "layouts/base_auth.html" %}
 {% block title %}Kayıt{% endblock %}
 {% block content %}
-<div class="row justify-content-center mt-5">
-  <div class="col-md-5">
-    <div class="card">
-      <div class="card-header"><h3 class="card-title">Kayıt Ol</h3></div>
+<div class="row justify-content-center">
+  <div class="col-lg-5 col-md-7">
+    <div class="card card-login">
+      <div class="card-header text-center">
+        <h3 class="card-title mb-1">WARecon</h3>
+        <p class="text-muted mb-0">Kayıt Ol</p>
+      </div>
       <div class="card-body">
         <form method="post">
           {% csrf_token %}
-          {{ form.as_p }}
-          <button type="submit" class="btn btn-primary w-100 mt-2">Kayıt Ol</button>
+          {% if form.non_field_errors %}
+          <div class="alert alert-danger">{{ form.non_field_errors }}</div>
+          {% endif %}
+          <div class="form-group">
+            <label for="id_username">Kullanıcı adı</label>
+            <input type="text" name="username" id="id_username" class="form-control" required autofocus
+                   value="{{ form.username.value|default:'' }}" maxlength="150">
+            {% if form.username.errors %}<small class="text-danger">{{ form.username.errors.0 }}</small>{% endif %}
+            {% if form.username.help_text %}<small class="form-text text-muted">{{ form.username.help_text }}</small>{% endif %}
+          </div>
+          <div class="form-group">
+            <label for="id_password1">Şifre</label>
+            <input type="password" name="password1" id="id_password1" class="form-control" required>
+            {% if form.password1.errors %}<small class="text-danger">{{ form.password1.errors.0 }}</small>{% endif %}
+          </div>
+          <div class="form-group">
+            <label for="id_password2">Şifre (tekrar)</label>
+            <input type="password" name="password2" id="id_password2" class="form-control" required>
+            {% if form.password2.errors %}<small class="text-danger">{{ form.password2.errors.0 }}</small>{% endif %}
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">Kayıt Ol</button>
         </form>
-        <p class="text-secondary small mt-3 mb-0 text-center">
+        <p class="text-muted small mt-3 mb-0 text-center">
           Zaten hesabınız var mı? <a href="{% url 'scans:login' %}">Giriş yapın</a>
         </p>
       </div>

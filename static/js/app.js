@@ -129,8 +129,8 @@ function renderNucleiChart(data) {
 
 function showLoadingModal() {
   const modalEl = document.getElementById('loadingModal');
-  if (modalEl && window.bootstrap) {
-    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+  if (modalEl && window.jQuery) {
+    jQuery(modalEl).modal('show');
   }
 }
 

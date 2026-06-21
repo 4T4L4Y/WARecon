@@ -1,6 +1,6 @@
 # WARecon
 
-Domain keşif ve güvenlik analiz platformu. **Django 5** + **Tabler** arayüzü, **Redis/RQ** arka plan görevleri, REST API ve PDF rapor desteği.
+Domain keşif ve güvenlik analiz platformu. **Django 5** + **[Black Dashboard](https://github.com/creativetimofficial/black-dashboard-django)** arayüzü, **Redis/RQ** arka plan görevleri, REST API ve PDF rapor desteği.
 
 ## Özellikler
 

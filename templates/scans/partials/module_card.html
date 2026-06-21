@@ -1,16 +1,16 @@
-<div class="col-12">
-  <label class="form-selectgroup-item flex-fill mb-0">
-    <input type="checkbox" name="choices" value="{{ value }}" class="form-selectgroup-input">
-    <span class="form-selectgroup-label d-flex align-items-center p-3">
-      <span class="me-3">
-        <span class="avatar avatar-sm bg-{{ color }}-lt text-{{ color }}">
-          <i class="ti {{ icon }}"></i>
+<label class="module-card col-12">
+  <input type="checkbox" name="choices" value="{{ value }}">
+  <div class="card">
+    <div class="card-body py-3">
+      <div class="d-flex align-items-center">
+        <span class="module-icon module-icon-{{ color }} mr-3">
+          <i class="tim-icons {{ icon }}"></i>
         </span>
-      </span>
-      <span class="form-selectgroup-label-content">
-        <span class="form-selectgroup-title strong">{{ title }}</span>
-        <span class="d-block text-secondary small">{{ desc }}</span>
-      </span>
-    </span>
-  </label>
-</div>
+        <div>
+          <div class="font-weight-bold">{{ title }}</div>
+          <small class="text-muted">{{ desc }}</small>
+        </div>
+      </div>
+    </div>
+  </div>
+</label>

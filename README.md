@@ -1,55 +1,96 @@
-![WARecon](https://github.com/user-attachments/assets/afe4e43f-2521-47da-9e25-9c000ab1073e)
-
 # WARecon
 
-This web application serves as a comprehensive tool for domain analysis. It integrates various open-source tools to perform a range of functions including port scanning, subdomain discovery, historical URL retrieval from the Wayback Machine, live URL scanning, and vulnerability scanning. The application offers a user-friendly interface where users can input a domain and select the desired analysis tools. The backend processes include:
+Domain keşif ve güvenlik analiz platformu. **Django 5** + **Tabler** arayüzü, **Redis/RQ** arka plan görevleri, REST API ve PDF rapor desteği.
 
-Naabu: Conducts a fast port scan to identify open ports.
+## Özellikler
 
-Subfinder: Discovers subdomains associated with the main domain.
+- Port, subdomain, DNS, Wayback, HTTPX, Katana crawl, Nuclei zafiyet taraması
+- Otomatik pipeline sıralaması
+- Arka planda tarama (sayfa donmaz)
+- Canlı ilerleme (SSE)
+- Kullanıcı girişi ve kişisel tarama geçmişi
+- REST API (`/api/scans/`)
+- HTML / PDF rapor export
+- Django Admin paneli
 
-Waybackpy: Retrieves historical URLs from the Wayback Machine.
-
-HTTPX: Scans for live URLs and their status codes.
-
-Nuclei: Performs vulnerability scanning on the given domain.
-
-The results of each tool are displayed on the web interface, providing a comprehensive view of the domain's security and infrastructure profile. Ideal for cybersecurity professionals and website administrators.
-
-## Installing requirements
-
-```bash
-pip3 install -r requirements
-```
-## Installing tools
+## Kurulum
 
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+
 bash install_tools.sh
+export PATH="$PATH:$HOME/go/bin"
+
+# Redis (arka plan işleri)
+sudo service redis-server start
+
+python manage.py migrate
+python manage.py createsuperuser
 ```
 
-## Usage
+## Çalıştırma
 
-Open terminal and run python3 app.py
+3 terminal gerekir:
 
-Then the web interface will be ready at 127.0.0.1:5000
+```bash
+# 1 — Redis (bir kez)
+sudo service redis-server start
 
+# 2 — RQ worker
+export PATH="$PATH:$HOME/go/bin"
+python manage.py rqworker default
 
-# Disclaimer of Liability
+# 3 — Django
+export PATH="$PATH:$HOME/go/bin"
+python manage.py runserver
+```
 
-This web application is intended for educational and informational purposes only. The use of the application is the responsibility of the user and users are obliged to comply with the relevant legal regulations and ethical rules when using these tools. The application developer assumes no liability for any damages, loss of data or any other direct or indirect harm resulting from the use of this tool. Users must obtain permission from the administrators of the targeted system or network before using this tool. This tool may not be used to conduct unauthorized tests or to damage any network, system or service. Use of the application constitutes your acceptance of these terms.
+- Uygulama: http://127.0.0.1:8000/
+- Admin: http://127.0.0.1:8000/admin/
+- API: http://127.0.0.1:8000/api/scans/
+- RQ durumu: http://127.0.0.1:8000/django-rq/
 
-# Sorumluluk Reddi Beyanı
+## API Kullanımı
 
-Bu web uygulaması, sadece eğitim ve bilgilendirme amaçlı olarak tasarlanmıştır. Uygulamanın kullanımı, kullanıcının sorumluluğundadır ve kullanıcılar, bu araçları kullanırken ilgili yasal düzenlemelere ve etik kurallara uymakla yükümlüdürler. Uygulama geliştiricisi, bu aracın kullanımından kaynaklanan herhangi bir zarar, veri kaybı veya başka herhangi bir doğrudan veya dolaylı zarar için hiçbir sorumluluk kabul etmez. Kullanıcılar, bu aracı kullanmadan önce hedeflenen sistem veya ağın yöneticilerinden izin almalıdır. Bu araç, izinsiz testler yapmak veya herhangi bir ağa, sisteme veya servise zarar vermek amacıyla kullanılamaz. Uygulamanın kullanımı, bu şartları kabul ettiğiniz anlamına gelir.
+Oturum açtıktan sonra (tarayıcıda login) veya Basic Auth ile:
 
-## Contact
+```bash
+# Tarama başlat
+curl -u admin:password -X POST http://127.0.0.1:8000/api/scans/start/ \
+  -H "Content-Type: application/json" \
+  -d '{"domain":"example.com","choices":["4"],"httpxStatusCode":true}'
+
+# Tarama listesi
+curl -u admin:password http://127.0.0.1:8000/api/scans/
+
+# Tarama detayı
+curl -u admin:password http://127.0.0.1:8000/api/scans/1/
+```
+
+## Pipeline Sırası
+
+1. Subfinder → 2. dnsx → 3. Wayback → 4. HTTPX → 5. Katana → 6. Naabu → 7. Nuclei
+
+## Proje Yapısı
+
+```
+warecon/           Django ayarları
+scans/
+  models.py        Scan, ScanModuleResult
+  services/        CLI araçları, pipeline, raporlar
+  tasks.py         RQ arka plan görevleri
+  api.py           REST API
+templates/         Tabler arayüz
+static/
+outputs/           Tarama dosyaları
+```
+
+## Sorumluluk Reddi
+
+Yalnızca yetkili güvenlik testleri için kullanın.
+
+## İletişim
 
 [Musa ATALAY](https://tr.linkedin.com/in/musatalayy)
-
-## Tools
-
-[Naabu](https://github.com/projectdiscovery/naabu)
-[Subfinder](https://github.com/projectdiscovery/subfinder)
-[Waybackpy](https://pypi.org/project/waybackpy/)
-[HTTPX](https://github.com/projectdiscovery/httpx)
-[Nuclei](https://github.com/projectdiscovery/nuclei)

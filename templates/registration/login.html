@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Giriş{% endblock %}
+{% block content %}
+<div class="row justify-content-center mt-5">
+  <div class="col-md-5">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Giriş Yap</h3></div>
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+          {{ form.as_p }}
+          <button type="submit" class="btn btn-primary w-100 mt-2">Giriş</button>
+        </form>
+        <p class="text-secondary small mt-3 mb-0 text-center">
+          Hesabınız yok mu? <a href="{% url 'scans:register' %}">Kayıt olun</a>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

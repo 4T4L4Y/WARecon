@@ -4,7 +4,7 @@ import time
 from functools import wraps
 
 from django.conf import settings
-from django.contrib import messages
+from django.contrib.auth.views import redirect_to_login
 from django.contrib.auth import authenticate
 from django.core.exceptions import ValidationError
 from django.http import FileResponse, Http404, HttpResponse, JsonResponse, StreamingHttpResponse
@@ -37,7 +37,7 @@ def login_required_basic(view):
     def wrapper(request, *args, **kwargs):
         user = _resolve_user(request)
         if not user:
-            return redirect(f"{settings.LOGIN_URL}?next={request.path}")
+            return redirect_to_login(request.get_full_path())
         request.user = user
         return view(request, *args, **kwargs)
     return wrapper

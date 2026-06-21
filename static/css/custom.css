@@ -169,3 +169,68 @@ body.login-page .card-header {
   height: 0.5rem;
   background: rgba(255, 255, 255, 0.08);
 }
+
+/* Live activity log */
+.live-log {
+  margin: 0;
+  padding: 1rem;
+  min-height: 280px;
+  max-height: 420px;
+  overflow-y: auto;
+  background: #0d0d14;
+  border: none;
+  border-radius: 0 0 0.4285rem 0.4285rem;
+  font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.live-log-line {
+  padding: 0.1rem 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.live-log-cmd { color: #11cdef; }
+.live-log-info { color: rgba(255, 255, 255, 0.75); }
+.live-log-success { color: #00f2c3; }
+.live-log-warning { color: #ffd600; }
+.live-log-error { color: #fd5d93; }
+
+.module-step {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.55);
+  transition: background 0.2s ease;
+}
+
+.module-step-icon {
+  width: 1.5rem;
+  text-align: center;
+}
+
+.module-step-running {
+  color: #1d8cf8;
+  background: rgba(29, 140, 248, 0.08);
+}
+
+.module-step-running .module-step-icon i {
+  animation: spin 1s linear infinite;
+}
+
+.module-step-done {
+  color: #00f2c3;
+}
+
+.module-step-failed {
+  color: #fd5d93;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

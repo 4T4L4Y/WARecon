@@ -14,24 +14,57 @@
 {% endblock %}
 
 {% block content %}
-<div class="card">
-  <div class="card-body">
-    <div class="d-flex justify-content-between mb-2">
-      <span id="progressMessage">{{ scan.progress_message|default:"Başlatılıyor…" }}</span>
-      <span id="progressPercent">{{ scan.progress_percent }}%</span>
+<div class="row">
+  <div class="col-lg-4 mb-4">
+    <div class="card">
+      <div class="card-header">
+        <h4 class="card-title mb-0">Modül Durumu</h4>
+      </div>
+      <div class="card-body p-0">
+        <ul class="list-group list-group-flush" id="moduleSteps">
+          {% for item in module_status %}
+          <li class="list-group-item module-step module-step-{{ item.state }}" data-module-id="{{ item.id }}">
+            <span class="module-step-icon"><i class="tim-icons {% if item.state == 'done' %}icon-check-2{% elif item.state == 'running' %}icon-refresh-01{% elif item.state == 'failed' %}icon-simple-remove{% else %}icon-minimal-down{% endif %}"></i></span>
+            <span class="module-step-label">{{ item.label }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
     </div>
-    <div class="progress mb-4">
-      <div class="progress-bar bg-primary" id="progressBar" style="width: {{ scan.progress_percent }}%"></div>
+  </div>
+
+  <div class="col-lg-8 mb-4">
+    <div class="card">
+      <div class="card-body pb-2">
+        <div class="d-flex justify-content-between mb-2">
+          <span id="progressMessage">{{ scan.progress_message|default:"Başlatılıyor…" }}</span>
+          <span id="progressPercent">{{ scan.progress_percent }}%</span>
+        </div>
+        <div class="progress mb-3">
+          <div class="progress-bar bg-primary" id="progressBar" style="width: {{ scan.progress_percent }}%"></div>
+        </div>
+        <p class="text-muted small mb-0" id="moduleInfo">
+          {% if scan.current_module %}Aktif modül: {{ scan.current_module }}{% endif %}
+        </p>
+      </div>
     </div>
-    <p class="text-muted small mb-0" id="moduleInfo">
-      {% if scan.current_module %}Modül: {{ scan.current_module }}{% endif %}
-    </p>
+
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h4 class="card-title mb-0"><i class="tim-icons icon-laptop mr-2"></i>Canlı Aktivite</h4>
+        <span class="badge badge-default" id="logCount">0 satır</span>
+      </div>
+      <div class="card-body p-0">
+        <pre class="live-log" id="liveLog" aria-live="polite"></pre>
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}
 
 {% block scripts_extra %}
 {% load static %}
+{{ initial_logs_data|json_script:"initial-logs-data" }}
 <script>
   window.SCAN_ID = {{ scan.pk }};
   window.SCAN_EVENTS_URL = "{% url 'scans:events' scan.pk %}";

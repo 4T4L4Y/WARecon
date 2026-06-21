@@ -3,6 +3,7 @@ from pathlib import Path
 from django.conf import settings
 
 from .runner import run_command
+from .live_log import log_activity
 
 
 def outputs_dir() -> Path:
@@ -60,6 +61,7 @@ def run_wayback(domain: str, known_urls: bool = False, include_subdomains: bool 
         if out.exists():
             continue
         args = ["waybackpy", "-u", subdomain, *suffix_args]
+        log_activity(f"Wayback sorgusu: {subdomain}")
         run_command(args, output_file=out)
 
     return read_combined(outputs_dir(), domain, "_wayback.txt")

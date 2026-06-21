@@ -60,6 +60,27 @@ class Scan(models.Model):
         self.save(update_fields=["current_module", "progress_message", "progress_percent"])
 
 
+class ScanLog(models.Model):
+    class Level(models.TextChoices):
+        INFO = "info", "Bilgi"
+        SUCCESS = "success", "Başarılı"
+        WARNING = "warning", "Uyarı"
+        ERROR = "error", "Hata"
+        CMD = "cmd", "Komut"
+
+    scan = models.ForeignKey(Scan, on_delete=models.CASCADE, related_name="logs")
+    level = models.CharField(max_length=16, choices=Level.choices, default=Level.INFO)
+    message = models.TextField()
+    module = models.CharField(max_length=64, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["id"]
+
+    def __str__(self):
+        return f"{self.scan_id}: {self.message[:60]}"
+
+
 class ScanModuleResult(models.Model):
     class Module(models.TextChoices):
         NAABU = "naabu", "Port Tarama"

@@ -5,6 +5,7 @@ from functools import wraps
 
 from django.conf import settings
 from django.contrib.auth.views import redirect_to_login
+from django.contrib import messages
 from django.contrib.auth import authenticate
 from django.core.exceptions import ValidationError
 from django.http import FileResponse, Http404, HttpResponse, JsonResponse, StreamingHttpResponse
@@ -12,7 +13,8 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_http_methods
 
 from .forms import ScanForm
-from .models import Scan
+from .models import Scan, ScanLog
+from .services.live_log import module_status_for_scan
 from .services.pipeline import create_scan, scan_to_context
 from .services.reports import render_html_report, render_pdf_report
 from .tasks import enqueue_scan
@@ -86,7 +88,22 @@ def index(request):
 @require_GET
 def progress(request, pk: int):
     scan = get_object_or_404(_user_scans(request.user), pk=pk)
-    return render(request, "scans/progress.html", {"scan": scan})
+    initial_logs = list(ScanLog.objects.filter(scan=scan).order_by("id")[:200])
+    initial_logs_data = [
+        {
+            "id": entry.id,
+            "level": entry.level,
+            "message": entry.message,
+            "module": entry.module,
+            "time": entry.created_at.strftime("%H:%M:%S"),
+        }
+        for entry in initial_logs
+    ]
+    return render(request, "scans/progress.html", {
+        "scan": scan,
+        "initial_logs_data": initial_logs_data,
+        "module_status": module_status_for_scan(scan),
+    })
 
 
 @login_required_basic
@@ -96,24 +113,49 @@ def scan_events(request, pk: int):
 
     def event_stream():
         last_percent = -1
+        last_log_id = 0
+        last_status = ""
+        last_module = ""
         while True:
             scan.refresh_from_db()
+            new_logs = list(
+                ScanLog.objects.filter(scan=scan, id__gt=last_log_id).order_by("id")[:100]
+            )
+            if new_logs:
+                last_log_id = new_logs[-1].id
+
             payload = {
                 "status": scan.status,
                 "message": scan.progress_message,
                 "percent": scan.progress_percent,
                 "module": scan.current_module,
                 "error": scan.error_message,
+                "modules": module_status_for_scan(scan),
+                "logs": [
+                    {
+                        "id": entry.id,
+                        "level": entry.level,
+                        "message": entry.message,
+                        "module": entry.module,
+                        "time": entry.created_at.strftime("%H:%M:%S"),
+                    }
+                    for entry in new_logs
+                ],
             }
-            if scan.progress_percent != last_percent or scan.status in (
-                Scan.Status.COMPLETED,
-                Scan.Status.FAILED,
-            ):
+            changed = (
+                scan.progress_percent != last_percent
+                or scan.status != last_status
+                or scan.current_module != last_module
+                or bool(new_logs)
+            )
+            if changed:
                 yield f"data: {json.dumps(payload)}\n\n"
                 last_percent = scan.progress_percent
+                last_status = scan.status
+                last_module = scan.current_module
             if scan.status in (Scan.Status.COMPLETED, Scan.Status.FAILED):
                 break
-            time.sleep(1)
+            time.sleep(0.5)
 
     response = StreamingHttpResponse(event_stream(), content_type="text/event-stream")
     response["Cache-Control"] = "no-cache"

@@ -1,6 +1,7 @@
 from django.utils import timezone
 
 from scans.models import Scan, ScanModuleResult
+from scans.services.live_log import bind_scan_log, log_activity, reset_scan_log
 
 from . import tools
 from .validators import (
@@ -73,7 +74,7 @@ def create_scan(user, form_data: dict) -> Scan:
         "katanaDepth": form_data.get("katanaDepth", "2"),
     }
 
-    return Scan.objects.create(
+    scan = Scan.objects.create(
         user=user,
         domain=domain,
         raw_input=raw_input,
@@ -82,6 +83,10 @@ def create_scan(user, form_data: dict) -> Scan:
         status=Scan.Status.PENDING,
         progress_message="Kuyruğa alındı…",
     )
+    token = bind_scan_log(scan.pk)
+    log_activity("Tarama kuyruğa alındı.", level="info")
+    reset_scan_log(token)
+    return scan
 
 
 def execute_scan(scan_id: int) -> None:
@@ -89,6 +94,9 @@ def execute_scan(scan_id: int) -> None:
     scan.status = Scan.Status.RUNNING
     scan.progress_percent = 0
     scan.save(update_fields=["status", "progress_percent"])
+
+    log_token = bind_scan_log(scan_id)
+    log_activity("Tarama worker tarafından başlatıldı.", level="info")
 
     config = scan.config or {}
     domain = scan.domain
@@ -98,12 +106,18 @@ def execute_scan(scan_id: int) -> None:
 
     try:
         for index, choice in enumerate(ordered):
+            module_token = bind_scan_log(scan_id, choice)
             label = MODULE_LABELS.get(choice, choice)
             percent = int((index / total) * 100)
             scan.update_progress(choice, f"{label} çalışıyor…", percent)
+            log_activity(f"▶ {label} başlatılıyor…", level="info", module=choice)
 
             module_key = MODULE_MAP[choice]
             output_text = _run_module(choice, domain, raw_input, config)
+
+            line_count = len([ln for ln in output_text.splitlines() if ln.strip()])
+            log_activity(f"✓ {label} bitti — {line_count} satır sonuç.", level="success", module=choice)
+            reset_scan_log(module_token)
 
             ScanModuleResult.objects.create(
                 scan=scan,
@@ -121,6 +135,7 @@ def execute_scan(scan_id: int) -> None:
             "status", "progress_percent", "progress_message",
             "current_module", "completed_at",
         ])
+        log_activity("Tüm modüller tamamlandı.", level="success")
     except Exception as exc:
         scan.status = Scan.Status.FAILED
         scan.error_message = str(exc)
@@ -129,7 +144,10 @@ def execute_scan(scan_id: int) -> None:
         scan.save(update_fields=[
             "status", "error_message", "progress_message", "completed_at",
         ])
+        log_activity(f"Hata: {exc}", level="error")
         raise
+    finally:
+        reset_scan_log(log_token)
 
 
 def _run_module(choice: str, domain: str, raw_input: str, config: dict) -> str:

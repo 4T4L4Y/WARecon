@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="tr" data-bs-theme="dark">
 <head>
@@ -6,10 +7,10 @@
   <title>{% block title %}WARecon{% endblock %} — Domain Keşif Aracı</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.4.0/dist/css/tabler.min.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
+  <link rel="stylesheet" href="{% static 'css/custom.css' %}">
   {% block head_extra %}{% endblock %}
 </head>
-<body class="layout-fluid" data-domain="{{ domain | default('', true) }}">
+<body class="layout-fluid" data-domain="{{ domain|default:'' }}">
 
   <div class="page">
     <header class="navbar navbar-expand-md d-print-none sticky-top border-bottom">
@@ -18,7 +19,7 @@
           <span class="navbar-toggler-icon"></span>
         </button>
         <h1 class="navbar-brand navbar-brand-autodark d-none-navbar-horizontal pe-0 pe-md-3 mb-0">
-          <a href="/" class="d-flex align-items-center text-decoration-none">
+          <a href="{% url 'scans:index' %}" class="d-flex align-items-center text-decoration-none">
             <span class="avatar avatar-sm bg-primary text-white me-2">WA</span>
             <span class="fw-bold">WARecon</span>
           </a>
@@ -38,43 +39,42 @@
       <aside class="navbar navbar-vertical navbar-expand-lg" data-bs-theme="dark">
         <div class="collapse navbar-collapse" id="sidebar-menu">
           <div class="navbar-brand pt-lg-3 pb-lg-2 px-3">
-            <a href="/" class="d-flex align-items-center text-decoration-none">
+            <a href="{% url 'scans:index' %}" class="d-flex align-items-center text-decoration-none">
               <span class="avatar avatar-sm bg-primary text-white me-2">WA</span>
               <span class="fw-bold">WARecon</span>
             </a>
           </div>
           <ul class="navbar-nav pt-lg-2">
             <li class="nav-item">
-              <a class="nav-link {% block nav_scan_active %}active{% endblock %}" href="/">
+              <a class="nav-link {% block nav_scan_active %}{% endblock %}" href="{% url 'scans:index' %}">
                 <span class="nav-link-icon"><i class="ti ti-radar-2"></i></span>
                 <span class="nav-link-title">Tarama</span>
               </a>
             </li>
             <li class="nav-item">
-              <a class="nav-link disabled" href="#" tabindex="-1" aria-disabled="true" title="Yakında">
+              <a class="nav-link {% block nav_history_active %}{% endblock %}" href="{% url 'scans:history' %}">
                 <span class="nav-link-icon"><i class="ti ti-history"></i></span>
                 <span class="nav-link-title">Geçmiş</span>
-                <span class="badge badge-sm bg-secondary-lt ms-auto">Yakında</span>
               </a>
             </li>
             <li class="nav-item">
-              <a class="nav-link disabled" href="#" tabindex="-1" aria-disabled="true" title="Yakında">
+              <a class="nav-link disabled" href="#" tabindex="-1" aria-disabled="true">
                 <span class="nav-link-icon"><i class="ti ti-file-report"></i></span>
                 <span class="nav-link-title">Raporlar</span>
                 <span class="badge badge-sm bg-secondary-lt ms-auto">Yakında</span>
               </a>
             </li>
             <li class="nav-item">
-              <a class="nav-link disabled" href="#" tabindex="-1" aria-disabled="true" title="Yakında">
+              <a class="nav-link disabled" href="#" tabindex="-1" aria-disabled="true">
                 <span class="nav-link-icon"><i class="ti ti-api"></i></span>
                 <span class="nav-link-title">API</span>
                 <span class="badge badge-sm bg-secondary-lt ms-auto">Yakında</span>
               </a>
             </li>
             <li class="nav-item mt-auto">
-              <a class="nav-link disabled" href="#" tabindex="-1" aria-disabled="true">
+              <a class="nav-link" href="/admin/" target="_blank">
                 <span class="nav-link-icon"><i class="ti ti-settings"></i></span>
-                <span class="nav-link-title">Ayarlar</span>
+                <span class="nav-link-title">Admin</span>
               </a>
             </li>
           </ul>
@@ -93,6 +93,16 @@
 
       <div class="page-body">
         <div class="container-xl">
+          {% if messages %}
+          <div class="mb-3">
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible" role="alert">
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
           {% block page_header %}{% endblock %}
           {% block content %}{% endblock %}
         </div>
@@ -101,7 +111,7 @@
       <footer class="footer footer-transparent d-print-none">
         <div class="container-xl">
           <div class="text-center text-secondary py-3 small">
-            WARecon — MIT · Naabu · Subfinder · Waybackpy · HTTPX · Nuclei
+            WARecon — Django · Naabu · Subfinder · Waybackpy · HTTPX · Nuclei
           </div>
         </div>
       </footer>
@@ -121,7 +131,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.4.0/dist/js/tabler.min.js"></script>
-  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  <script src="{% static 'js/app.js' %}"></script>
   {% block scripts_extra %}{% endblock %}
 </body>
 </html>

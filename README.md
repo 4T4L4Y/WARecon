@@ -1,55 +1,76 @@
-![WARecon](https://github.com/user-attachments/assets/afe4e43f-2521-47da-9e25-9c000ab1073e)
-
 # WARecon
 
-This web application serves as a comprehensive tool for domain analysis. It integrates various open-source tools to perform a range of functions including port scanning, subdomain discovery, historical URL retrieval from the Wayback Machine, live URL scanning, and vulnerability scanning. The application offers a user-friendly interface where users can input a domain and select the desired analysis tools. The backend processes include:
+Domain keşif ve güvenlik analiz platformu. Django + Tabler arayüzü ile Naabu, Subfinder, Waybackpy, HTTPX ve Nuclei araçlarını tek panelden çalıştırır.
 
-Naabu: Conducts a fast port scan to identify open ports.
+## Gereksinimler
 
-Subfinder: Discovers subdomains associated with the main domain.
+- Python 3.10+
+- Go (tarama araçları için)
+- `pip`, `venv`
 
-Waybackpy: Retrieves historical URLs from the Wayback Machine.
-
-HTTPX: Scans for live URLs and their status codes.
-
-Nuclei: Performs vulnerability scanning on the given domain.
-
-The results of each tool are displayed on the web interface, providing a comprehensive view of the domain's security and infrastructure profile. Ideal for cybersecurity professionals and website administrators.
-
-## Installing requirements
+## Kurulum
 
 ```bash
-pip3 install -r requirements
-```
-## Installing tools
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 
-```bash
+# Go tabanlı araçlar (naabu, subfinder, httpx, nuclei)
 bash install_tools.sh
+export PATH="$PATH:$HOME/go/bin"
+
+# Veritabanı
+python manage.py migrate
+
+# (İsteğe bağlı) Admin kullanıcısı
+python manage.py createsuperuser
 ```
 
-## Usage
+## Çalıştırma
 
-Open terminal and run python3 app.py
+```bash
+export PATH="$PATH:$HOME/go/bin"
+python manage.py runserver
+```
 
-Then the web interface will be ready at 127.0.0.1:5000
+Tarayıcı: http://127.0.0.1:8000/
 
+Admin panel: http://127.0.0.1:8000/admin/
 
-# Disclaimer of Liability
+## Proje Yapısı
 
-This web application is intended for educational and informational purposes only. The use of the application is the responsibility of the user and users are obliged to comply with the relevant legal regulations and ethical rules when using these tools. The application developer assumes no liability for any damages, loss of data or any other direct or indirect harm resulting from the use of this tool. Users must obtain permission from the administrators of the targeted system or network before using this tool. This tool may not be used to conduct unauthorized tests or to damage any network, system or service. Use of the application constitutes your acceptance of these terms.
+```
+warecon/          # Django ayarları
+scans/            # Ana uygulama
+  models.py       # Tarama geçmişi (Scan, ScanModuleResult)
+  services/       # CLI araç entegrasyonu + pipeline
+templates/        # Tabler arayüz şablonları
+static/           # CSS, JS
+outputs/          # Tarama çıktı dosyaları
+```
 
-# Sorumluluk Reddi Beyanı
+## Pipeline Sırası
 
-Bu web uygulaması, sadece eğitim ve bilgilendirme amaçlı olarak tasarlanmıştır. Uygulamanın kullanımı, kullanıcının sorumluluğundadır ve kullanıcılar, bu araçları kullanırken ilgili yasal düzenlemelere ve etik kurallara uymakla yükümlüdürler. Uygulama geliştiricisi, bu aracın kullanımından kaynaklanan herhangi bir zarar, veri kaybı veya başka herhangi bir doğrudan veya dolaylı zarar için hiçbir sorumluluk kabul etmez. Kullanıcılar, bu aracı kullanmadan önce hedeflenen sistem veya ağın yöneticilerinden izin almalıdır. Bu araç, izinsiz testler yapmak veya herhangi bir ağa, sisteme veya servise zarar vermek amacıyla kullanılamaz. Uygulamanın kullanımı, bu şartları kabul ettiğiniz anlamına gelir.
+Modüller otomatik olarak şu sırada çalışır:
 
-## Contact
+1. Subdomain (Subfinder)
+2. Wayback URL
+3. HTTPX
+4. Port (Naabu)
+5. Nuclei
+
+## Araçlar
+
+- [Naabu](https://github.com/projectdiscovery/naabu) — Port tarama
+- [Subfinder](https://github.com/projectdiscovery/subfinder) — Subdomain keşfi
+- [Waybackpy](https://pypi.org/project/waybackpy/) — Arşiv URL
+- [HTTPX](https://github.com/projectdiscovery/httpx) — Canlı URL doğrulama
+- [Nuclei](https://github.com/projectdiscovery/nuclei) — Zafiyet tarama
+
+## Sorumluluk Reddi
+
+Bu araç yalnızca eğitim ve yetkili güvenlik testleri içindir. Hedef sistemlerde izin almadan kullanmayın.
+
+## İletişim
 
 [Musa ATALAY](https://tr.linkedin.com/in/musatalayy)
-
-## Tools
-
-[Naabu](https://github.com/projectdiscovery/naabu)
-[Subfinder](https://github.com/projectdiscovery/subfinder)
-[Waybackpy](https://pypi.org/project/waybackpy/)
-[HTTPX](https://github.com/projectdiscovery/httpx)
-[Nuclei](https://github.com/projectdiscovery/nuclei)

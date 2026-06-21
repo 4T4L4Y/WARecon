@@ -1,0 +1,84 @@
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title"><i class="ti ti-list-details me-2"></i>Sonuçlar</h3>
+    {% if domain %}
+    <div class="card-actions">
+      <span class="text-secondary small">{{ domain }}</span>
+    </div>
+    {% endif %}
+  </div>
+
+  {% if naabu_output or subdomain_output or wayback_output or httpx_output or nuclei_output %}
+  <div class="card-header card-header-tabs">
+    <ul class="nav nav-tabs card-header-tabs" role="tablist">
+      {% if naabu_output %}<li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-naabu"><i class="ti ti-bolt me-1"></i>Port</a></li>{% endif %}
+      {% if subdomain_output %}<li class="nav-item"><a class="nav-link{% if not naabu_output %} active{% endif %}" data-bs-toggle="tab" href="#tab-subdomain"><i class="ti ti-world me-1"></i>Subdomain</a></li>{% endif %}
+      {% if wayback_output %}<li class="nav-item"><a class="nav-link{% if not naabu_output and not subdomain_output %} active{% endif %}" data-bs-toggle="tab" href="#tab-wayback"><i class="ti ti-archive me-1"></i>Wayback</a></li>{% endif %}
+      {% if httpx_output %}<li class="nav-item"><a class="nav-link{% if not naabu_output and not subdomain_output and not wayback_output %} active{% endif %}" data-bs-toggle="tab" href="#tab-httpx"><i class="ti ti-link me-1"></i>HTTPX</a></li>{% endif %}
+      {% if nuclei_output %}<li class="nav-item"><a class="nav-link{% if not naabu_output and not subdomain_output and not wayback_output and not httpx_output %} active{% endif %}" data-bs-toggle="tab" href="#tab-nuclei"><i class="ti ti-shield me-1"></i>Nuclei</a></li>{% endif %}
+    </ul>
+  </div>
+  <div class="card-body">
+    <div class="tab-content">
+      {% if naabu_output %}
+      <div class="tab-pane active show" id="tab-naabu">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <span class="text-secondary">Naabu port tarama çıktısı</span>
+          <a class="btn btn-sm btn-outline-primary" href="{% url 'scans:download' domain|add:'_naabu.txt' %}"><i class="ti ti-download me-1"></i>İndir</a>
+        </div>
+        <pre class="result-output">{{ naabu_output }}</pre>
+      </div>
+      {% endif %}
+      {% if subdomain_output %}
+      <div class="tab-pane{% if not naabu_output %} active show{% endif %}" id="tab-subdomain">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <span class="text-secondary">Subfinder keşif çıktısı</span>
+          <a class="btn btn-sm btn-outline-primary" href="{% url 'scans:download' domain|add:'_subdomains.txt' %}"><i class="ti ti-download me-1"></i>İndir</a>
+        </div>
+        <pre class="result-output">{{ subdomain_output }}</pre>
+      </div>
+      {% endif %}
+      {% if wayback_output %}
+      <div class="tab-pane{% if not naabu_output and not subdomain_output %} active show{% endif %}" id="tab-wayback">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <span class="text-secondary">Wayback arşiv URL'leri</span>
+          <a class="btn btn-sm btn-outline-primary" href="{% url 'scans:download' domain|add:'_wayback.txt' %}"><i class="ti ti-download me-1"></i>İndir</a>
+        </div>
+        <pre class="result-output">{{ wayback_output }}</pre>
+      </div>
+      {% endif %}
+      {% if httpx_output %}
+      <div class="tab-pane{% if not naabu_output and not subdomain_output and not wayback_output %} active show{% endif %}" id="tab-httpx">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <span class="text-secondary">HTTPX canlı URL doğrulama</span>
+          <a class="btn btn-sm btn-outline-primary" href="{% url 'scans:download' domain|add:'_httpx.txt' %}"><i class="ti ti-download me-1"></i>İndir</a>
+        </div>
+        <pre class="result-output">{{ httpx_output }}</pre>
+      </div>
+      {% endif %}
+      {% if nuclei_output %}
+      <div class="tab-pane{% if not naabu_output and not subdomain_output and not wayback_output and not httpx_output %} active show{% endif %}" id="tab-nuclei">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <span class="text-secondary">Nuclei zafiyet sonuçları</span>
+          <a class="btn btn-sm btn-outline-primary" href="{% url 'scans:download' domain|add:'_nuclei.txt' %}"><i class="ti ti-download me-1"></i>İndir</a>
+        </div>
+        <pre class="result-output">{{ nuclei_output }}</pre>
+        <div id="chartSection" class="mt-4" style="display:none">
+          <div class="subheader mb-3">Zafiyet Dağılımı</div>
+          <div class="chart-wrap"><canvas id="nucleiChart"></canvas></div>
+          <div id="severityLegendContainer" class="mt-3"></div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+  {% else %}
+  <div class="card-body">
+    <div class="empty">
+      <div class="empty-icon"><i class="ti ti-radar-2 icon-lg text-secondary"></i></div>
+      <p class="empty-title">Henüz sonuç yok</p>
+      <p class="empty-subtitle text-secondary">Sol panelden hedef domain girin, modül seçin ve taramayı başlatın.</p>
+    </div>
+  </div>
+  {% endif %}
+</div>

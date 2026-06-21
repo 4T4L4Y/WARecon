@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+
+{% block title %}Tarama{% endblock %}
+{% block nav_scan_active %}{% if not scan %}active{% endif %}{% endblock %}
+
+{% block head_extra %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block page_header %}
+<div class="page-header d-print-none mb-4">
+  <div class="row align-items-center">
+    <div class="col">
+      <div class="page-pretitle">Güvenlik Keşfi</div>
+      <h2 class="page-title">Domain Tarama</h2>
+    </div>
+    {% if domain %}
+    <div class="col-auto">
+      <span class="badge bg-primary-lt fs-6">
+        <i class="ti ti-world me-1"></i>{{ domain }}
+      </span>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title"><i class="ti ti-adjustments me-2"></i>Yapılandırma</h3>
+      </div>
+      <div class="card-body">
+        <form action="{% url 'scans:index' %}" method="post" id="scanForm">
+          {% csrf_token %}
+          <div class="mb-3">
+            <label class="form-label required" for="domain">Hedef Domain / URL</label>
+            <div class="input-icon">
+              <span class="input-icon-addon"><i class="ti ti-link"></i></span>
+              <input type="text" class="form-control" name="domain" id="domain"
+                     value="{{ domain }}" placeholder="ornek.com" required autocomplete="off">
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Hızlı Profiller</label>
+            <div class="btn-list">
+              <button type="button" class="btn btn-outline-primary btn-sm" onclick="applyPreset('quick')">
+                <i class="ti ti-bolt me-1"></i>Hızlı Keşif
+              </button>
+              <button type="button" class="btn btn-outline-primary btn-sm" onclick="applyPreset('deep')">
+                <i class="ti ti-search me-1"></i>Derin Tarama
+              </button>
+              <button type="button" class="btn btn-outline-primary btn-sm" onclick="applyPreset('full')">
+                <i class="ti ti-stack-2 me-1"></i>Tam Tarama
+              </button>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label required">Tarama Modülleri</label>
+            <div class="form-selectgroup form-selectgroup-boxes">
+              <div class="row g-2">
+                {% include "scans/partials/module_card.html" with value="1" icon="ti-bolt" color="red" title="Port Tarama" desc="Naabu — açık portlar" %}
+                {% include "scans/partials/module_card.html" with value="2" icon="ti-world" color="green" title="Subdomain" desc="Subfinder — alt alan adları" %}
+                {% include "scans/partials/module_card.html" with value="3" icon="ti-archive" color="yellow" title="Wayback URL" desc="Waybackpy — arşiv URL" %}
+                {% include "scans/partials/module_card.html" with value="4" icon="ti-link" color="blue" title="Canlı URL" desc="HTTPX — aktif endpoint" %}
+                {% include "scans/partials/module_card.html" with value="5" icon="ti-shield" color="purple" title="Zafiyet" desc="Nuclei — güvenlik açıkları" %}
+              </div>
+            </div>
+          </div>
+
+          <div id="naabuOptions" class="card card-sm bg-secondary-lt mb-3 d-none">
+            <div class="card-body">
+              <div class="subheader mb-2">Naabu Ayarları</div>
+              <label class="form-label" for="naabuPorts">Portlar (isteğe bağlı)</label>
+              <input type="text" class="form-control form-control-sm" id="naabuPorts" name="naabuPorts" placeholder="80,443,8080">
+            </div>
+          </div>
+
+          <div id="subdomainOptions" class="card card-sm bg-secondary-lt mb-3 d-none">
+            <div class="card-body">
+              <div class="subheader mb-2">Subfinder Ayarları</div>
+              <label class="form-check">
+                <input class="form-check-input" type="checkbox" name="subdomainParams" value="-all">
+                <span class="form-check-label">Tüm kaynakları kullan (-all, yavaş)</span>
+              </label>
+            </div>
+          </div>
+
+          <div id="waybackOptions" class="card card-sm bg-secondary-lt mb-3 d-none">
+            <div class="card-body">
+              <div class="subheader mb-2">Wayback Ayarları</div>
+              <label class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" name="waybackKnownUrls" id="waybackKnownUrls" onchange="toggleSubdomainOption()">
+                <span class="form-check-label">Bilinen URL'leri getir</span>
+              </label>
+              <label class="form-check d-none" id="includeSubdomainsContainer">
+                <input class="form-check-input" type="checkbox" name="includeSubdomains">
+                <span class="form-check-label">Subdomain'leri dahil et</span>
+              </label>
+              <p class="text-secondary small mb-0 mt-2">
+                <i class="ti ti-info-circle me-1"></i>Subfinder çıktısı gerektirir.
+              </p>
+            </div>
+          </div>
+
+          <div id="httpxOptions" class="card card-sm bg-secondary-lt mb-3 d-none">
+            <div class="card-body">
+              <div class="subheader mb-2">HTTPX Ayarları</div>
+              <label class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" name="httpxFollowRedirects">
+                <span class="form-check-label">Yönlendirmeleri takip et (-fr)</span>
+              </label>
+              <label class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" name="httpxStatusCode">
+                <span class="form-check-label">Durum kodlarını göster (-sc)</span>
+              </label>
+              <label class="form-label" for="httpxMatchCodes">Durum kodu filtresi (-mc)</label>
+              <input type="text" class="form-control form-control-sm" name="httpxMatchCodes" id="httpxMatchCodes" placeholder="200,302,404">
+            </div>
+          </div>
+
+          <div id="nucleiOptions" class="card card-sm bg-secondary-lt mb-3 d-none">
+            <div class="card-body">
+              <div class="subheader mb-2">Nuclei Ayarları</div>
+              <label class="form-label" for="nucleiTemplates">Şablon ID'leri</label>
+              <input type="text" class="form-control form-control-sm mb-3" name="nucleiTemplates" id="nucleiTemplates" placeholder="caa-fingerprint">
+              <label class="form-label">Önem derecesi</label>
+              <div class="form-selectgroup form-selectgroup-pills">
+                <label class="form-selectgroup-item"><input type="checkbox" name="nucleiSeverity" value="critical" class="form-selectgroup-input"><span class="form-selectgroup-label text-red">Critical</span></label>
+                <label class="form-selectgroup-item"><input type="checkbox" name="nucleiSeverity" value="high" class="form-selectgroup-input"><span class="form-selectgroup-label text-orange">High</span></label>
+                <label class="form-selectgroup-item"><input type="checkbox" name="nucleiSeverity" value="medium" class="form-selectgroup-input"><span class="form-selectgroup-label text-yellow">Medium</span></label>
+                <label class="form-selectgroup-item"><input type="checkbox" name="nucleiSeverity" value="low" class="form-selectgroup-input"><span class="form-selectgroup-label text-green">Low</span></label>
+                <label class="form-selectgroup-item"><input type="checkbox" name="nucleiSeverity" value="info" class="form-selectgroup-input"><span class="form-selectgroup-label text-blue">Info</span></label>
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="ti ti-player-play me-2"></i>Taramayı Başlat
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    {% include "scans/partials/results.html" %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block title %}Geçmiş{% endblock %}
+{% block nav_history_active %}active{% endblock %}
+
+{% block page_header %}
+<div class="page-header d-print-none mb-4">
+  <div class="row align-items-center">
+    <div class="col">
+      <div class="page-pretitle">Tarama Kayıtları</div>
+      <h2 class="page-title">Geçmiş</h2>
+    </div>
+    <div class="col-auto">
+      <a href="{% url 'scans:index' %}" class="btn btn-primary">
+        <i class="ti ti-plus me-1"></i>Yeni Tarama
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title">Son Taramalar</h3>
+  </div>
+  {% if scans %}
+  <div class="table-responsive">
+    <table class="table table-vcenter card-table">
+      <thead>
+        <tr>
+          <th>Domain</th>
+          <th>Modüller</th>
+          <th>Durum</th>
+          <th>Tarih</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for scan in scans %}
+        <tr>
+          <td><strong>{{ scan.domain }}</strong></td>
+          <td>
+            {% for label in scan.module_labels %}
+            <span class="badge bg-secondary-lt me-1">{{ label }}</span>
+            {% endfor %}
+          </td>
+          <td>
+            {% if scan.status == 'completed' %}
+            <span class="badge bg-green-lt">Tamamlandı</span>
+            {% elif scan.status == 'failed' %}
+            <span class="badge bg-red-lt">Başarısız</span>
+            {% elif scan.status == 'running' %}
+            <span class="badge bg-blue-lt">Çalışıyor</span>
+            {% else %}
+            <span class="badge bg-secondary-lt">{{ scan.get_status_display }}</span>
+            {% endif %}
+          </td>
+          <td class="text-secondary">{{ scan.created_at|date:"d.m.Y H:i" }}</td>
+          <td>
+            <a href="{% url 'scans:detail' scan.pk %}" class="btn btn-sm btn-outline-primary">Görüntüle</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="card-body">
+    <div class="empty">
+      <div class="empty-icon"><i class="ti ti-history icon-lg text-secondary"></i></div>
+      <p class="empty-title">Henüz tarama yok</p>
+      <p class="empty-subtitle text-secondary">İlk taramanızı başlatın, sonuçlar burada listelenecek.</p>
+      <div class="empty-action">
+        <a href="{% url 'scans:index' %}" class="btn btn-primary">Tarama Başlat</a>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

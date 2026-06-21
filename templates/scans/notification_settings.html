@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Bildirim Ayarları{% endblock %}
+
+{% block page_header %}
+<div class="row mb-4">
+  <div class="col-sm-8">
+    <p class="text-muted mb-1">Hesap</p>
+    <h2 class="mb-0">Bildirim Tercihleri</h2>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-body">
+        <form method="post">
+          {% csrf_token %}
+          <h6 class="text-primary">Uygulama içi</h6>
+          <div class="custom-control custom-checkbox mb-3">
+            <input class="custom-control-input" type="checkbox" name="notify_in_app" id="notifyInApp"
+                   {% if profile.notify_in_app %}checked{% endif %}>
+            <label class="custom-control-label" for="notifyInApp">Tarama bittiğinde uygulama bildirimi göster</label>
+          </div>
+
+          <h6 class="text-primary mt-4">E-posta</h6>
+          <div class="custom-control custom-checkbox mb-2">
+            <input class="custom-control-input" type="checkbox" name="notify_email" id="notifyEmail"
+                   {% if profile.notify_email %}checked{% endif %}>
+            <label class="custom-control-label" for="notifyEmail">Tarama tamamlandığında e-posta gönder</label>
+          </div>
+          <div class="custom-control custom-checkbox mb-3">
+            <input class="custom-control-input" type="checkbox" name="notify_email_critical_high" id="notifyCrit"
+                   {% if profile.notify_email_critical_high %}checked{% endif %}>
+            <label class="custom-control-label" for="notifyCrit">Kritik / yüksek Nuclei bulgularında e-posta gönder</label>
+          </div>
+
+          <h6 class="text-primary mt-4">Telefon (SMS)</h6>
+          <p class="text-muted small">SMS altyapısı henüz bağlı değil; numara kaydı ileride kullanılacak.</p>
+          <label for="notifyPhone">Telefon numarası</label>
+          <input type="text" class="form-control mb-2" name="notify_phone" id="notifyPhone"
+                 value="{{ profile.notify_phone }}" placeholder="+90 5xx xxx xx xx">
+          <div class="custom-control custom-checkbox mb-4">
+            <input class="custom-control-input" type="checkbox" name="phone_critical_high" id="phoneCrit"
+                   {% if profile.phone_critical_high %}checked{% endif %}>
+            <label class="custom-control-label" for="phoneCrit">Kritik / yüksek bulgularda SMS (yakında)</label>
+          </div>
+
+          <button type="submit" class="btn btn-primary">Kaydet</button>
+          <a href="{% url 'scans:history' %}" class="btn btn-outline-default ml-2">Geri</a>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

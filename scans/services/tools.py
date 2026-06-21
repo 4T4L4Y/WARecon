@@ -101,6 +101,8 @@ def run_nuclei_on_list(
     input_file: Path,
     templates: str,
     severities: list[str],
+    *,
+    tags: list[str] | None = None,
 ) -> str:
     scan_dir = scan_output_dir(scan_id)
     out_txt = _target_file(scan_dir, host, "_nuclei.txt")
@@ -115,6 +117,8 @@ def run_nuclei_on_list(
             args.extend(["-id", template_id])
     if severities:
         args.extend(["-severity", ",".join(severities)])
+    if tags:
+        args.extend(["-tags", ",".join(tags[:25])])
     run_command(args)
     return normalize_tool_output(read_file(out_txt))
 
@@ -144,6 +148,50 @@ def run_katana_on_target(
     return normalize_tool_output(read_file(out))
 
 
+def parse_whatweb_tags(raw: str) -> list[str]:
+    import json
+
+    tags: set[str] = set()
+    text = raw.strip()
+    if not text:
+        return []
+    try:
+        data = json.loads(text)
+        entries = data if isinstance(data, list) else [data]
+        for entry in entries:
+            plugins = entry.get("plugins") or {}
+            for name in plugins:
+                tag = name.lower().replace(" ", "-").replace("_", "-")
+                if tag and len(tag) < 40:
+                    tags.add(tag)
+    except json.JSONDecodeError:
+        for line in text.splitlines():
+            for part in re.findall(r"\[([^\]]+)\]", line):
+                tag = part.lower().replace(" ", "-")
+                if tag:
+                    tags.add(tag)
+    return sorted(tags)[:25]
+
+
+def run_whatweb_on_target(scan_id: int, host: str, url: str) -> tuple[str, list[str]]:
+    scan_dir = scan_output_dir(scan_id)
+    out = _target_file(scan_dir, host, "_whatweb.txt")
+    json_out = _target_file(scan_dir, host, "_whatweb.json")
+    args = ["whatweb", "--color=never", "--log-json=-", url]
+    log_activity(f"WhatWeb: {host}")
+    run_command(args, output_file=json_out)
+    raw = read_file(json_out)
+    if not raw.strip():
+        run_command(["whatweb", "--color=never", url], output_file=out)
+        raw = read_file(out)
+    else:
+        out.write_text(raw, encoding="utf-8")
+    tags = parse_whatweb_tags(raw)
+    if tags:
+        log_activity(f"{host}: WhatWeb etiketleri → {', '.join(tags[:8])}", level="info")
+    return normalize_tool_output(raw), tags
+
+
 def run_per_subdomain_web_pipeline(
     scan_id: int,
     domain: str,
@@ -165,6 +213,7 @@ def run_per_subdomain_web_pipeline(
     httpx_all: list[str] = []
     nuclei_all: list[str] = []
     katana_all: list[str] = []
+    whatweb_all: list[str] = []
 
     httpx_opts = {
         "follow_redirects": config.get("httpxFollowRedirects", False),
@@ -172,10 +221,22 @@ def run_per_subdomain_web_pipeline(
         "match_codes": config.get("httpxMatchCodes", ""),
     }
     templates = config.get("nucleiTemplates", "")
+    template_ids = config.get("nucleiTemplateIds") or []
+    if template_ids:
+        templates = ",".join(template_ids)
     severities = config.get("nucleiSeverity", [])
     depth = str(config.get("katanaDepth", "2"))
 
+    from scans.services.scan_control import check_abort
+
     for host in hosts:
+        abort = check_abort(scan_id, "web")
+        if abort == "cancel":
+            break
+        if abort == "skip":
+            log_activity("Web adımı atlandı — mevcut çıktılarla devam.", level="warning")
+            break
+
         log_activity(f"▸ Alt alan işleniyor: {host}", level="info")
 
         wayback_path = _target_file(scan_dir, host, "_wayback.txt")
@@ -211,8 +272,23 @@ def run_per_subdomain_web_pipeline(
             hx = ""
 
         nuclei_input = httpx_path if hx.strip() and httpx_path.is_file() else target_file
+        whatweb_tags: list[str] = []
         if run_nuclei:
-            nu = run_nuclei_on_list(scan_id, host, nuclei_input, templates, severities)
+            primary_url = f"https://{host}"
+            if hx.strip():
+                from scans.services.output_utils import extract_urls_from_text
+
+                urls = extract_urls_from_text(hx)
+                if urls:
+                    primary_url = urls[0]
+            ww_text, whatweb_tags = run_whatweb_on_target(scan_id, host, primary_url)
+            if ww_text.strip():
+                whatweb_all.append(f"=== {host} ===\n{ww_text}")
+
+        if run_nuclei:
+            nu = run_nuclei_on_list(
+                scan_id, host, nuclei_input, templates, severities, tags=whatweb_tags,
+            )
             if nu.strip():
                 nuclei_all.append(f"=== {host} ===\n{nu}")
 
@@ -229,6 +305,7 @@ def run_per_subdomain_web_pipeline(
         "httpx": "\n".join(httpx_all),
         "nuclei": "\n".join(nuclei_all),
         "katana": "\n".join(katana_all),
+        "whatweb": "\n".join(whatweb_all),
     }
 
 

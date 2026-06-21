@@ -4,6 +4,7 @@ from django.utils.safestring import mark_safe
 from scans.models import Scan, ScanModuleResult
 from scans.services.formatters import format_module_output, strip_html_output
 from scans.services.output_utils import normalize_tool_output
+from scans.services.scan_control import consume_skip, is_cancelled, mark_module_started
 from scans.services.live_log import bind_scan_log, log_activity, reset_scan_log
 from scans.services.output_paths import list_subdomains, read_file, safe_name, scan_output_dir
 
@@ -51,6 +52,7 @@ OUTPUT_SUFFIX = {
     ScanModuleResult.Module.DNSX: "_dnsx.txt",
     ScanModuleResult.Module.KATANA: "_katana.txt",
     ScanModuleResult.Module.NMAP: "_nmap.txt",
+    ScanModuleResult.Module.WHATWEB: "_whatweb.txt",
 }
 
 RESULT_KEY_TO_MODULE = {
@@ -59,6 +61,7 @@ RESULT_KEY_TO_MODULE = {
     "wayback_output": "wayback",
     "httpx_output": "httpx",
     "katana_output": "katana",
+    "whatweb_output": "whatweb",
     "naabu_output": "naabu",
     "nmap_output": "nmap",
     "nuclei_output": "nuclei",
@@ -139,6 +142,7 @@ def create_scan(user, form_data: dict) -> Scan:
         "httpxStatusCode": form_data.get("httpxStatusCode", False),
         "httpxMatchCodes": form_data.get("httpxMatchCodes", ""),
         "nucleiTemplates": form_data.get("nucleiTemplates", ""),
+        "nucleiTemplateIds": form_data.get("nucleiTemplateIds") or [],
         "nucleiSeverity": form_data.get("nucleiSeverity", []),
         "katanaDepth": form_data.get("katanaDepth", "2"),
         "nmap_exploit_suggestions": [],
@@ -146,6 +150,9 @@ def create_scan(user, form_data: dict) -> Scan:
         "discovered_subdomains": [],
         "selected_subdomains": [],
     }
+    template_ids = config.get("nucleiTemplateIds") or []
+    if template_ids:
+        config["nucleiTemplates"] = ",".join(template_ids)
 
     scan = Scan.objects.create(
         user=user,
@@ -170,6 +177,8 @@ def execute_scan(scan_id: int) -> None:
         Scan.Status.RUNNING,
         Scan.Status.AWAITING_SUBDOMAIN_SELECTION,
     ):
+        return
+    if scan.cancel_requested:
         return
 
     config = dict(scan.config or {})
@@ -198,8 +207,25 @@ def execute_scan(scan_id: int) -> None:
             if step in completed:
                 continue
 
+            scan.refresh_from_db()
+            if is_cancelled(scan_id):
+                log_activity("Tarama iptal edildi.", level="warning")
+                return
+
+            if scan.skip_module_requested == step:
+                consume_skip(scan, step)
+                label = MODULE_LABELS.get(step, step)
+                log_activity(f"⏭ {label} atlandı — mevcut çıktılarla devam.", level="warning", module=step)
+                completed.add(step)
+                config["completed_steps"] = list(completed)
+                scan.config = config
+                scan.save(update_fields=["config"])
+                step_index += 1
+                continue
+
             module_token = bind_scan_log(scan_id, step)
             label = MODULE_LABELS.get(step, step)
+            mark_module_started(scan, step)
             percent = int((step_index / max(total, 1)) * 100)
             scan.update_progress(step, f"{label} çalışıyor…", percent)
             log_activity(f"▶ {label} başlatılıyor…", level="info", module=step)
@@ -276,6 +302,14 @@ def execute_scan(scan_id: int) -> None:
             "current_module", "completed_at", "config",
         ])
         log_activity("Tüm modüller tamamlandı.", level="success")
+        from scans.services.notifications import (
+            collect_nuclei_items_for_scan,
+            notify_critical_findings,
+            notify_scan_finished,
+        )
+
+        notify_scan_finished(scan)
+        notify_critical_findings(scan, collect_nuclei_items_for_scan(scan))
     except Exception as exc:
         scan.status = Scan.Status.FAILED
         scan.error_message = str(exc)
@@ -314,11 +348,16 @@ def _persist_web_outputs(scan: Scan, ordered: list[str], outputs: dict[str, str]
         "httpx": (ScanModuleResult.Module.HTTPX, "4"),
         "nuclei": (ScanModuleResult.Module.NUCLEI, "5"),
         "katana": (ScanModuleResult.Module.KATANA, "7"),
+        "whatweb": (ScanModuleResult.Module.WHATWEB, "5"),
     }
     for key, (module, choice_id) in mapping.items():
         if choice_id not in ordered:
             continue
+        if key == "whatweb" and "5" not in ordered:
+            continue
         text = outputs.get(key, "")
+        if key == "whatweb" and not text.strip():
+            continue
         filename = f"{scan.domain}{OUTPUT_SUFFIX[module]}"
         _save_module_result(scan, module, text, filename)
         lines = len([ln for ln in text.splitlines() if ln.strip()])
@@ -441,6 +480,7 @@ def _collect_web_outputs_from_disk(scan: Scan, hosts: list[str]) -> dict[str, st
         "httpx": "_httpx.txt",
         "nuclei": "_nuclei.txt",
         "katana": "_katana.txt",
+        "whatweb": "_whatweb.txt",
     }
     for host in hosts:
         safe = safe_name(host)
@@ -466,6 +506,7 @@ def scan_to_context(scan: Scan) -> dict:
         "nuclei_output": "",
         "dnsx_output": "",
         "katana_output": "",
+        "whatweb_output": "",
         "exploit_suggestions": (scan.config or {}).get("nmap_exploit_suggestions", []),
         "enabled_modules": set(scan.modules or []),
     }
@@ -478,6 +519,7 @@ def scan_to_context(scan: Scan) -> dict:
         "nuclei": "nuclei_output",
         "dnsx": "dnsx_output",
         "katana": "katana_output",
+        "whatweb": "whatweb_output",
     }
     for result in scan.results.all():
         key = key_map.get(result.module)
@@ -505,12 +547,15 @@ def _result_tabs(scan: Scan, context: dict) -> list[dict]:
         ("1", "naabu_output", "Port", "naabu", "icon-spaceship"),
         ("8", "nmap_output", "Nmap", "nmap", "icon-zoom-split"),
         ("5", "nuclei_output", "Nuclei", "nuclei", "icon-lock-circle"),
+        ("5w", "whatweb_output", "WhatWeb", "whatweb", "icon-settings-gear-63"),
     ]
     result = []
     modules = set(scan.modules or [])
     for choice, key, label, fmt, icon in tabs:
-        show = choice in modules or (choice == "8" and "1" in modules)
-        if not show:
+        if choice == "5w":
+            if "5" not in modules:
+                continue
+        elif choice not in modules and not (choice == "8" and "1" in modules):
             continue
         raw = context.get(key, "")
         result.append({

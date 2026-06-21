@@ -25,6 +25,8 @@ pip install waybackpy
 if command -v apt-get &>/dev/null; then
   echo "Nmap installing (system package)..."
   sudo apt-get install -y nmap 2>/dev/null || echo "Nmap: install manually with apt/brew"
+  echo "WhatWeb installing (system package)..."
+  sudo apt-get install -y whatweb 2>/dev/null || echo "WhatWeb: install manually with apt"
 fi
 
 echo "Install completed."

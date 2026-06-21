@@ -41,7 +41,16 @@
         <tbody>
           {% for scan in scans %}
           <tr>
-            <td><strong>{{ scan.domain }}</strong></td>
+            <td>
+              <strong>{{ scan.domain }}</strong>
+              {% with subs=scan.config.discovered_subdomains|default:"" %}
+              {% if subs %}
+              <div class="text-muted small mt-1">
+                {{ scan.config.selected_subdomains|length|default:0 }} / {{ subs|length }} alt alan tarandı
+              </div>
+              {% endif %}
+              {% endwith %}
+            </td>
             <td>
               {% for label in scan.module_labels %}
               <span class="badge badge-default mr-1">{{ label }}</span>

@@ -86,6 +86,12 @@ document.addEventListener('DOMContentLoaded', () => {
       source.close();
       return;
     }
+    if (data.status === 'cancelled') {
+      badge.textContent = 'İptal Edildi';
+      badge.className = 'badge badge-secondary';
+      source.close();
+      return;
+    }
     if (data.status === 'failed') {
       badge.textContent = 'Başarısız';
       badge.className = 'badge badge-danger';
@@ -109,6 +115,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (data.modules) {
       updateModules(data.modules);
+    }
+    if (data.skip_available) {
+      const skipForm = document.getElementById('skipModuleForm');
+      if (skipForm) skipForm.classList.remove('d-none');
     }
     handleStatus(data);
   };

@@ -53,6 +53,24 @@
         <div class="progress mb-3">
           <div class="progress-bar bg-primary" id="progressBar" style="width: {{ scan.progress_percent }}%"></div>
         </div>
+        <div class="d-flex flex-wrap mb-2" id="scanControlActions">
+          {% if scan.status == 'running' or scan.status == 'pending' %}
+          <form method="post" action="{% url 'scans:cancel' scan.pk %}" class="mr-2 mb-1"
+                onsubmit="return confirm('Tarama durdurulsun mu?');">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{% url 'scans:history' %}">
+            <button type="submit" class="btn btn-sm btn-danger">
+              <i class="tim-icons icon-simple-remove mr-1"></i>Durdur
+            </button>
+          </form>
+          {% endif %}
+          <form method="post" action="{% url 'scans:skip_module' scan.pk %}" class="mb-1 d-none" id="skipModuleForm">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-warning">
+              <i class="tim-icons icon-minimal-right mr-1"></i>Modülü Atla (mevcut veriyle devam)
+            </button>
+          </form>
+        </div>
         <p class="text-muted small mb-0" id="moduleInfo">
           {% if scan.current_module %}Aktif modül: {{ scan.current_module }}{% endif %}
         </p>
@@ -79,7 +97,8 @@
   window.SCAN_ID = {{ scan.pk }};
   window.SCAN_EVENTS_URL = "{% url 'scans:events' scan.pk %}";
   window.SCAN_DETAIL_URL = "{% url 'scans:detail' scan.pk %}";
-  window.SCAN_SELECT_URL = "{% url 'scans:select_subdomains' scan.pk %}";
+  window.SCAN_CANCEL_URL = "{% url 'scans:cancel' scan.pk %}";
+  window.SCAN_SKIP_URL = "{% url 'scans:skip_module' scan.pk %}";
 </script>
 <span id="initial-scan-status" data-status="{{ scan.status }}" class="d-none"></span>
 <script src="{% static 'js/progress.js' %}"></script>

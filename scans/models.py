@@ -8,6 +8,7 @@ class Scan(models.Model):
         PENDING = "pending", "Bekliyor"
         RUNNING = "running", "Çalışıyor"
         AWAITING_SUBDOMAIN_SELECTION = "awaiting_subdomains", "Alt Alan Seçimi"
+        CANCELLED = "cancelled", "İptal Edildi"
         COMPLETED = "completed", "Tamamlandı"
         FAILED = "failed", "Başarısız"
 
@@ -32,6 +33,9 @@ class Scan(models.Model):
     progress_percent = models.PositiveSmallIntegerField(default=0)
     error_message = models.TextField(blank=True)
     is_archived = models.BooleanField(default=False, db_index=True)
+    cancel_requested = models.BooleanField(default=False, db_index=True)
+    rq_job_id = models.CharField(max_length=128, blank=True)
+    skip_module_requested = models.CharField(max_length=64, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)
 
@@ -50,6 +54,7 @@ class Scan(models.Model):
         "6": "DNS",
         "7": "Katana",
         "8": "Nmap",
+        "9": "WhatWeb",
     }
 
     @property
@@ -94,6 +99,7 @@ class ScanModuleResult(models.Model):
         DNSX = "dnsx", "DNS Kayıtları"
         KATANA = "katana", "Web Crawl"
         NMAP = "nmap", "Nmap Servis"
+        WHATWEB = "whatweb", "WhatWeb Teknoloji"
 
     scan = models.ForeignKey(Scan, on_delete=models.CASCADE, related_name="results")
     module = models.CharField(max_length=32, choices=Module.choices)
@@ -112,3 +118,55 @@ class ScanModuleResult(models.Model):
         if not self.output_file:
             return ""
         return f"/outputs/{self.output_file}"
+
+
+class UserProfile(models.Model):
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="profile",
+    )
+    notify_in_app = models.BooleanField(default=True)
+    notify_email = models.BooleanField(default=True)
+    notify_email_critical_high = models.BooleanField(default=True)
+    notify_phone = models.CharField(max_length=32, blank=True)
+    phone_critical_high = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"Profil: {self.user.username}"
+
+
+class ScanNotification(models.Model):
+    class Level(models.TextChoices):
+        INFO = "info", "Bilgi"
+        SUCCESS = "success", "Başarılı"
+        WARNING = "warning", "Uyarı"
+        CRITICAL = "critical", "Kritik"
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="scan_notifications",
+    )
+    scan = models.ForeignKey(
+        Scan,
+        on_delete=models.CASCADE,
+        related_name="notifications",
+        null=True,
+        blank=True,
+    )
+    level = models.CharField(
+        max_length=16,
+        choices=Level.choices,
+        default=Level.INFO,
+    )
+    title = models.CharField(max_length=255)
+    message = models.TextField()
+    is_read = models.BooleanField(default=False, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.user_id}: {self.title[:40]}"

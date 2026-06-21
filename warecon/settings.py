@@ -87,6 +87,12 @@ LOGIN_URL = "scans:login"
 LOGIN_REDIRECT_URL = "scans:index"
 LOGOUT_REDIRECT_URL = "scans:index"
 
+DEFAULT_FROM_EMAIL = os.environ.get("DJANGO_DEFAULT_FROM_EMAIL", "noreply@warecon.local")
+EMAIL_BACKEND = os.environ.get(
+    "DJANGO_EMAIL_BACKEND",
+    "django.core.mail.backends.console.EmailBackend",
+)
+
 OUTPUTS_DIR = BASE_DIR / "outputs"
 
 # CLI araçları: venv/bin (waybackpy) ve ~/go/bin (ProjectDiscovery)

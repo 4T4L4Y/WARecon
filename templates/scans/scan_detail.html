@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}{{ scan.domain }} — Sonuçlar{% endblock %}
+
+{% block page_header %}
+<div class="row mb-4 align-items-center">
+  <div class="col-sm-8">
+    <p class="text-muted mb-1">Tarama Detayı · <a href="{% url 'scans:history' %}">Geçmiş</a></p>
+    <h2 class="mb-0">{{ scan.domain }}</h2>
+    <p class="text-muted small mb-0 mt-1">
+      {{ scan.get_status_display }} · {{ scan.created_at|date:"d.m.Y H:i" }}
+    </p>
+  </div>
+  <div class="col-sm-4 text-sm-right">
+    <a href="{% url 'scans:progress' scan.pk %}" class="btn btn-sm btn-info mb-1">
+      <i class="tim-icons icon-laptop mr-1"></i>Canlı İzleme
+    </a>
+    <a href="{% url 'scans:report_pdf' scan.pk %}" class="btn btn-sm btn-primary mb-1">PDF</a>
+  </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-lg-3 mb-4">
+    <div class="card">
+      <div class="card-header py-3">
+        <h5 class="card-title mb-0">Alt Alanlar</h5>
+      </div>
+      <div class="list-group list-group-flush subdomain-nav">
+        {% for item in subdomain_breakdown %}
+        <a href="{% url 'scans:detail' scan.pk %}?host={{ item.host|urlencode }}"
+           class="list-group-item list-group-item-action subdomain-nav-item{% if not item.scanned %} subdomain-unscanned{% endif %}{% if active_host == item.host %} active{% endif %}">
+          <span class="subdomain-host-label">{{ item.host }}</span>
+          {% if item.scanned %}
+          <span class="badge badge-success badge-sm">Taranan</span>
+          {% else %}
+          <span class="badge badge-secondary badge-sm">Seçilmedi</span>
+          {% endif %}
+        </a>
+        {% empty %}
+        <div class="list-group-item text-muted">Alt alan kaydı yok</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-9 mb-4">
+    {% if active_host != scan.domain or host_results.panels %}
+    <div class="card mb-4">
+      <div class="card-header">
+        <h4 class="card-title mb-0">
+          <i class="tim-icons icon-world mr-2"></i>{{ active_host }}
+        </h4>
+      </div>
+      <div class="card-body">
+        {% if host_results.panels %}
+        <ul class="nav nav-tabs" role="tablist">
+          {% for panel in host_results.panels %}
+          <li class="nav-item">
+            <a class="nav-link{% if forloop.first %} active{% endif %}" data-toggle="tab" href="#host-tab-{{ panel.key }}">
+              {{ panel.label }}
+            </a>
+          </li>
+          {% endfor %}
+        </ul>
+        <div class="tab-content mt-3">
+          {% for panel in host_results.panels %}
+          <div class="tab-pane{% if forloop.first %} active show{% endif %}" id="host-tab-{{ panel.key }}">
+            {% if panel.is_empty %}
+            <p class="text-muted mb-0">Bu alt alan için {{ panel.label }} çıktısı yok.</p>
+            {% else %}
+            <div class="result-output-rich">{{ panel.html|safe }}</div>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">Bu alt alan seçilmedi veya modül çıktısı üretilmedi.</p>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    {% include "scans/partials/results.html" %}
+  </div>
+</div>
+{% endblock %}

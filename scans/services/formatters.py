@@ -193,6 +193,19 @@ def format_default(text: str) -> str:
     return _wrap(lines)
 
 
+def format_whatweb(text: str) -> str:
+    lines = []
+    for raw in text.splitlines():
+        line = strip_ansi(raw).strip()
+        if not line:
+            continue
+        if line.startswith("===") and line.endswith("==="):
+            lines.append(f'<div class="output-line output-header">{_esc(line.strip("= "))}</div>')
+            continue
+        lines.append(f'<div class="output-line output-url">{_esc(line[:500])}</div>')
+    return _wrap(lines)
+
+
 FORMATTERS = {
     "naabu": format_naabu,
     "nmap": format_nmap,
@@ -202,6 +215,7 @@ FORMATTERS = {
     "wayback": format_wayback,
     "dnsx": format_dnsx,
     "katana": format_katana,
+    "whatweb": format_whatweb,
 }
 
 

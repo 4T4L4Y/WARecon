@@ -264,6 +264,42 @@ body.login-page .card-header {
   color: #fd5d93;
 }
 
+.subdomain-nav-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.82rem;
+  padding: 0.65rem 1rem;
+}
+.subdomain-unscanned {
+  opacity: 0.45;
+}
+.subdomain-unscanned .subdomain-host-label {
+  text-decoration: line-through;
+  text-decoration-color: rgba(255,255,255,0.25);
+}
+.subdomain-nav-item.active {
+  background: rgba(29, 140, 248, 0.15);
+  border-left: 3px solid #1d8cf8;
+}
+.nav-notification-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  font-size: 0.65rem;
+}
+.nuclei-template-picker {
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 0.4285rem;
+  padding: 0.5rem;
+}
+.nuclei-template-item {
+  font-size: 0.78rem;
+  padding: 0.2rem 0;
+}
+
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }

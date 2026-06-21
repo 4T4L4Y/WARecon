@@ -13,7 +13,11 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_http_methods
 
 from .forms import ScanForm
-from .models import Scan, ScanLog
+from .services.scan_control import request_cancel, request_skip_module, skip_available
+from .services.subdomain_detail import host_results_context, subdomain_breakdown
+from .services.notifications import get_or_create_profile
+from .tasks import cancel_rq_job
+from .models import Scan, ScanLog, ScanNotification, UserProfile
 from .services.live_log import module_status_for_scan
 from .services.output_paths import cleanup_scan_outputs, scan_output_dir
 from .services.pipeline import apply_subdomain_selection, create_scan, scan_to_context
@@ -73,7 +77,9 @@ def index(request):
             return render(request, "scans/index.html", context)
 
         try:
-            scan = create_scan(request.user, form.cleaned_data)
+            cleaned = form.cleaned_data
+            cleaned["nucleiTemplateIds"] = request.POST.getlist("nucleiTemplateIds")
+            scan = create_scan(request.user, cleaned)
             enqueue_scan(scan.pk)
             return redirect("scans:progress", pk=scan.pk)
         except ValidationError as exc:
@@ -134,6 +140,7 @@ def scan_events(request, pk: int):
                 "module": scan.current_module,
                 "error": scan.error_message,
                 "modules": module_status_for_scan(scan),
+                "skip_available": skip_available(scan),
                 "logs": [
                     {
                         "id": entry.id,
@@ -156,7 +163,11 @@ def scan_events(request, pk: int):
                 last_percent = scan.progress_percent
                 last_status = scan.status
                 last_module = scan.current_module
-            if scan.status in (Scan.Status.COMPLETED, Scan.Status.FAILED):
+            if scan.status in (
+                Scan.Status.COMPLETED,
+                Scan.Status.FAILED,
+                Scan.Status.CANCELLED,
+            ):
                 break
             time.sleep(0.5)
 
@@ -290,8 +301,100 @@ def run_exploit_check(request, pk: int):
 @require_GET
 def scan_detail(request, pk: int):
     scan = get_object_or_404(_user_scans(request.user).prefetch_related("results"), pk=pk)
+    host = request.GET.get("host", "").strip()
+    subs = subdomain_breakdown(scan)
+    if not host:
+        selected = [s["host"] for s in subs if s["scanned"]]
+        host = selected[0] if selected else scan.domain
     context = scan_to_context(scan)
-    return render(request, "scans/index.html", context)
+    context.update({
+        "scan": scan,
+        "subdomain_breakdown": subs,
+        "active_host": host,
+        "host_results": host_results_context(scan, host),
+    })
+    return render(request, "scans/scan_detail.html", context)
+
+
+@login_required_basic
+@require_http_methods(["POST"])
+def scan_cancel(request, pk: int):
+    scan = get_object_or_404(_user_scans(request.user), pk=pk)
+    if scan.status in (Scan.Status.COMPLETED, Scan.Status.FAILED, Scan.Status.CANCELLED):
+        return redirect("scans:progress", pk=pk)
+    cancel_rq_job(scan)
+    request_cancel(scan)
+    from scans.services.notifications import notify_scan_finished
+
+    notify_scan_finished(scan)
+    messages.warning(request, "Tarama durduruldu.")
+    return redirect(request.POST.get("next") or "scans:progress", pk=scan.pk)
+
+
+@login_required_basic
+@require_http_methods(["POST"])
+def scan_skip_module(request, pk: int):
+    scan = get_object_or_404(_user_scans(request.user), pk=pk)
+    module = scan.current_module or request.POST.get("module", "")
+    if module:
+        request_skip_module(scan, module)
+        messages.info(request, f"{module} modülü atlanıyor…")
+    return redirect("scans:progress", pk=pk)
+
+
+@login_required_basic
+@require_GET
+def nuclei_templates_api(request):
+    from scans.services.nuclei_templates import search_nuclei_templates
+
+    q = request.GET.get("q", "")
+    items = search_nuclei_templates(q, limit=300)
+    return JsonResponse({"templates": items})
+
+
+@login_required_basic
+@require_GET
+def notifications_api(request):
+    items = ScanNotification.objects.filter(
+        user=request.user, is_read=False,
+    )[:30]
+    return JsonResponse({
+        "count": ScanNotification.objects.filter(user=request.user, is_read=False).count(),
+        "items": [
+            {
+                "id": n.id,
+                "title": n.title,
+                "message": n.message,
+                "level": n.level,
+                "scan_id": n.scan_id,
+                "time": n.created_at.strftime("%d.%m %H:%M"),
+            }
+            for n in items
+        ],
+    })
+
+
+@login_required_basic
+@require_http_methods(["POST"])
+def notifications_mark_read(request):
+    ScanNotification.objects.filter(user=request.user, is_read=False).update(is_read=True)
+    return JsonResponse({"ok": True})
+
+
+@login_required_basic
+@require_http_methods(["GET", "POST"])
+def notification_settings(request):
+    profile = get_or_create_profile(request.user)
+    if request.method == "POST":
+        profile.notify_in_app = "notify_in_app" in request.POST
+        profile.notify_email = "notify_email" in request.POST
+        profile.notify_email_critical_high = "notify_email_critical_high" in request.POST
+        profile.phone_critical_high = "phone_critical_high" in request.POST
+        profile.notify_phone = request.POST.get("notify_phone", "").strip()
+        profile.save()
+        messages.success(request, "Bildirim tercihleri kaydedildi.")
+        return redirect("scans:notification_settings")
+    return render(request, "scans/notification_settings.html", {"profile": profile})
 
 
 @login_required_basic

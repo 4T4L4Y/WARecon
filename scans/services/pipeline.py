@@ -3,6 +3,7 @@ from django.utils.safestring import mark_safe
 
 from scans.models import Scan, ScanModuleResult
 from scans.services.formatters import format_module_output, strip_html_output
+from scans.services.output_preview import DEFAULT_PREVIEW_LINES, load_result_preview, truncate_for_storage
 from scans.services.output_utils import normalize_tool_output
 from scans.services.scan_control import (
     consume_skip,
@@ -112,6 +113,7 @@ def _output_relpath(scan_id: int, filename: str) -> str:
 
 def _save_module_result(scan: Scan, module: str, output_text: str, filename: str) -> None:
     plain = strip_html_output(normalize_tool_output(output_text))
+    plain = truncate_for_storage(plain)
     ScanModuleResult.objects.update_or_create(
         scan=scan,
         module=module,
@@ -270,12 +272,13 @@ def execute_scan(scan_id: int) -> None:
             elif step == "web":
                 web_flags = _web_flags(scan, config)
                 outputs = tools.run_per_subdomain_web_pipeline(
-                    scan_id,
+                    scan,
                     domain,
                     config,
                     hosts=_selected_hosts(scan_id, domain, config),
                     **web_flags,
                 )
+                config = dict(scan.config or config)
                 _persist_web_outputs(scan, ordered, outputs)
             elif step == "1":
                 _run_naabu_nmap_phase(scan, config)
@@ -461,7 +464,7 @@ def refresh_scan_outputs(
 
     if rerun_wayback or rerun_httpx or rerun_nuclei or rerun_katana:
         outputs = tools.run_per_subdomain_web_pipeline(
-            scan.pk,
+            scan,
             scan.domain,
             config,
             hosts=hosts,
@@ -500,7 +503,7 @@ def _collect_web_outputs_from_disk(scan: Scan, hosts: list[str]) -> dict[str, st
     return {key: "\n\n".join(parts) for key, parts in buckets.items()}
 
 
-def scan_to_context(scan: Scan) -> dict:
+def scan_to_context(scan: Scan, *, preview_lines: int = DEFAULT_PREVIEW_LINES) -> dict:
     context = {
         "domain": scan.domain,
         "scan": scan,
@@ -528,7 +531,7 @@ def scan_to_context(scan: Scan) -> dict:
     for result in scan.results.all():
         key = key_map.get(result.module)
         if key:
-            context[key] = strip_html_output(result.output)
+            context[key] = load_result_preview(result, max_lines=preview_lines)
 
     for output_key, module_name in RESULT_KEY_TO_MODULE.items():
         raw = context.get(output_key, "")

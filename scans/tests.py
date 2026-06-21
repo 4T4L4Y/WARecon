@@ -155,6 +155,11 @@ class SkipModuleControlTest(TestCase):
     def test_skip_available_uses_pipeline_step_timer(self):
         from datetime import datetime, timedelta, timezone
 
+        from scans.models import UserProfile
+
+        profile, _ = UserProfile.objects.get_or_create(user=self.scan.user)
+        profile.skip_module_after_seconds = 60
+        profile.save(update_fields=["skip_module_after_seconds"])
         self.scan.status = Scan.Status.RUNNING
         self.scan.current_module = "8"
         started = datetime.now(timezone.utc) - timedelta(seconds=130)
@@ -164,3 +169,16 @@ class SkipModuleControlTest(TestCase):
         }
         self.scan.save()
         self.assertTrue(skip_available(self.scan))
+
+        started = datetime.now(timezone.utc) - timedelta(seconds=45)
+        self.scan.config["module_started_at"] = {"1": started.isoformat()}
+        self.scan.save()
+        self.assertFalse(skip_available(self.scan))
+
+    def test_web_substep_skip_match(self):
+        from scans.services.scan_control import WEB_SUBMODULE_IDS, check_abort
+
+        self.scan.skip_module_requested = "3"
+        self.scan.save()
+        self.assertEqual(check_abort(self.scan.pk, "3"), "skip")
+        self.assertIn("3", WEB_SUBMODULE_IDS)

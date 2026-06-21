@@ -131,6 +131,7 @@ class UserProfile(models.Model):
     notify_email_critical_high = models.BooleanField(default=True)
     notify_phone = models.CharField(max_length=32, blank=True)
     phone_critical_high = models.BooleanField(default=False)
+    skip_module_after_seconds = models.PositiveIntegerField(default=120)
 
     def __str__(self):
         return f"Profil: {self.user.username}"

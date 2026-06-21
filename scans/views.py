@@ -300,7 +300,10 @@ def run_exploit_check(request, pk: int):
 @login_required_basic
 @require_GET
 def scan_detail(request, pk: int):
-    scan = get_object_or_404(_user_scans(request.user).prefetch_related("results"), pk=pk)
+    scan = get_object_or_404(
+        _user_scans(request.user).select_related("user__profile").prefetch_related("results"),
+        pk=pk,
+    )
     host = request.GET.get("host", "").strip()
     subs = subdomain_breakdown(scan)
     if not host:
@@ -394,6 +397,11 @@ def notification_settings(request):
         profile.notify_email_critical_high = "notify_email_critical_high" in request.POST
         profile.phone_critical_high = "phone_critical_high" in request.POST
         profile.notify_phone = request.POST.get("notify_phone", "").strip()
+        try:
+            skip_secs = int(request.POST.get("skip_module_after_seconds", "120"))
+        except (TypeError, ValueError):
+            skip_secs = 120
+        profile.skip_module_after_seconds = max(30, min(3600, skip_secs))
         profile.save()
         messages.success(request, "Bildirim tercihleri kaydedildi.")
         return redirect("scans:notification_settings")

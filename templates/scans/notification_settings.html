@@ -5,7 +5,7 @@
 <div class="row mb-4">
   <div class="col-sm-8">
     <p class="text-muted mb-1">Hesap</p>
-    <h2 class="mb-0">Bildirim Tercihleri</h2>
+    <h2 class="mb-0">Kullanıcı Ayarları</h2>
   </div>
 </div>
 {% endblock %}
@@ -35,6 +35,16 @@
                    {% if profile.notify_email_critical_high %}checked{% endif %}>
             <label class="custom-control-label" for="notifyCrit">Kritik / yüksek Nuclei bulgularında e-posta gönder</label>
           </div>
+
+          <h6 class="text-primary mt-4">Tarama davranışı</h6>
+          <label for="skipModuleSeconds">Modül atlama süresi (saniye)</label>
+          <input type="number" class="form-control mb-1" name="skip_module_after_seconds"
+                 id="skipModuleSeconds" min="30" max="3600" step="10"
+                 value="{{ profile.skip_module_after_seconds|default:120 }}">
+          <p class="text-muted small mb-4">
+            Bir modül bu süreden uzun sürerse canlı izlemede <strong>Modülü Atla</strong> butonu görünür.
+            Wayback, HTTPX, Nuclei ve Katana ayrı ayrı atlanabilir.
+          </p>
 
           <h6 class="text-primary mt-4">Telefon (SMS)</h6>
           <p class="text-muted small">SMS altyapısı henüz bağlı değil; numara kaydı ileride kullanılacak.</p>

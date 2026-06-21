@@ -7,6 +7,7 @@ from django.utils.safestring import mark_safe
 from scans.models import Scan
 from scans.services.formatters import format_module_output, strip_html_output
 from scans.services.output_paths import read_file, safe_name, scan_output_dir
+from scans.services.output_preview import read_file_head
 from scans.services.output_utils import normalize_tool_output
 
 HOST_SUFFIXES = {
@@ -57,6 +58,8 @@ def read_host_module_output(scan_id: int, host: str, module_key: str) -> str:
     path = scan_dir / f"{safe_name(host)}{suffix}"
     if not path.is_file():
         return ""
+    if path.stat().st_size > 500_000:
+        return normalize_tool_output(read_file_head(path))
     return normalize_tool_output(read_file(path))
 
 

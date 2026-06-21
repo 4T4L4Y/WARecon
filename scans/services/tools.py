@@ -1,5 +1,5 @@
 from pathlib import Path
-from .live_log import log_activity
+from .live_log import bind_scan_log, log_activity, reset_scan_log
 from .output_paths import list_subdomains, read_combined, read_file, safe_name, scan_output_dir
 from .output_utils import (
     extract_urls_from_text,
@@ -180,7 +180,7 @@ def run_katana_on_target(
 
 
 def run_per_subdomain_web_pipeline(
-    scan_id: int,
+    scan,
     domain: str,
     config: dict,
     *,
@@ -191,6 +191,15 @@ def run_per_subdomain_web_pipeline(
     run_katana: bool,
 ) -> dict[str, str]:
     """Wayback per subdomain, then HTTPX/Nuclei/Katana on URLs or fallback host."""
+    from scans.services.pipeline import MODULE_LABELS
+    from scans.services.scan_control import (
+        check_abort,
+        mark_module_started,
+        mark_web_substep_skipped,
+        web_substep_skipped,
+    )
+
+    scan_id = scan.pk
     scan_dir = scan_output_dir(scan_id)
     if hosts is None:
         hosts = list_subdomains(scan_dir, domain)
@@ -214,51 +223,93 @@ def run_per_subdomain_web_pipeline(
     severities = config.get("nucleiSeverity", [])
     depth = str(config.get("katanaDepth", "2"))
 
-    from scans.services.scan_control import check_abort
+    def _abort(substep: str) -> str | None:
+        if check_abort(scan_id) == "cancel" or check_abort(scan_id, substep) == "cancel":
+            return "cancel"
+        if check_abort(scan_id, "web") == "skip":
+            return "skip_web"
+        if check_abort(scan_id, substep) == "skip":
+            return "skip_sub"
+        return None
+
+    def _skip_substep(substep: str, label: str) -> None:
+        nonlocal config
+        config = mark_web_substep_skipped(scan, config, substep)
+        log_activity(f"⏭ {label} atlandı — sonraki adımlara geçiliyor.", level="warning", module=substep)
+
+    if run_wayback and not web_substep_skipped(config, "3"):
+        mark_module_started(scan, "3")
 
     for host in hosts:
-        abort = check_abort(scan_id, "web")
-        if abort == "cancel":
+        config = dict(scan.config or config)
+        action = _abort("3")
+        if action == "cancel":
             break
-        if abort == "skip":
+        if action == "skip_web":
             log_activity("Web adımı atlandı — mevcut çıktılarla devam.", level="warning")
             break
 
         log_activity(f"▸ Alt alan işleniyor: {host}", level="info")
 
         wayback_path = _target_file(scan_dir, host, "_wayback.txt")
-        if run_wayback:
-            wb = run_wayback_host(
-                scan_id,
-                host,
-                known_urls=config.get("waybackKnownUrls", False),
-                include_subdomains=config.get("includeSubdomains", False),
-            )
-            if wb.strip():
+        wb = ""
+        if run_wayback and not web_substep_skipped(config, "3"):
+            scan.update_progress("3", f"Wayback: {host}", scan.progress_percent)
+            token = bind_scan_log(scan_id, "3")
+            try:
+                wb = run_wayback_host(
+                    scan_id,
+                    host,
+                    known_urls=config.get("waybackKnownUrls", False),
+                    include_subdomains=config.get("includeSubdomains", False),
+                )
+            finally:
+                reset_scan_log(token)
+            if check_abort(scan_id, "3") == "skip" or check_abort(scan_id, "web") == "skip":
+                _skip_substep("3", MODULE_LABELS["3"])
+            elif wb.strip():
                 wayback_all.append(f"=== {host} ===\n{wb}")
         elif wayback_path.is_file():
             wb = read_file(wayback_path)
-        else:
-            wb = ""
+            if wb.strip():
+                wayback_all.append(f"=== {host} ===\n{wb}")
 
-        if wb.strip():
+        if wb.strip() and not web_substep_skipped(config, "3"):
             target_file = run_uro_dedupe(scan_id, host, wayback_path)
             log_activity(
                 f"{host}: Wayback URL'leri kullanılıyor ({len(_non_empty_lines(target_file))} satır)",
             )
         else:
             target_file = _url_list_file(scan_dir, host, "_targets.txt", f"https://{host}")
-            log_activity(f"{host}: Wayback boş — doğrudan host hedefleniyor")
+            if not wb.strip():
+                log_activity(f"{host}: Wayback boş — doğrudan host hedefleniyor")
+
+        action = _abort("4")
+        if action == "cancel":
+            break
+        if action == "skip_web":
+            log_activity("Web adımı atlandı — mevcut çıktılarla devam.", level="warning")
+            break
 
         httpx_path = _target_file(scan_dir, host, "_httpx.txt")
-        if run_httpx:
-            hx = run_httpx_on_list(scan_id, host, target_file, **httpx_opts)
-            if hx.strip():
+        hx = ""
+        if run_httpx and not web_substep_skipped(config, "4"):
+            if not (config.get("module_started_at") or {}).get("4"):
+                mark_module_started(scan, "4")
+            scan.update_progress("4", f"HTTPX: {host}", scan.progress_percent)
+            token = bind_scan_log(scan_id, "4")
+            try:
+                hx = run_httpx_on_list(scan_id, host, target_file, **httpx_opts)
+            finally:
+                reset_scan_log(token)
+            if check_abort(scan_id, "4") == "skip" or check_abort(scan_id, "web") == "skip":
+                _skip_substep("4", MODULE_LABELS["4"])
+            elif hx.strip():
                 httpx_all.append(f"=== {host} ===\n{hx}")
         elif httpx_path.is_file():
             hx = read_file(httpx_path)
-        else:
-            hx = ""
+            if hx.strip():
+                httpx_all.append(f"=== {host} ===\n{hx}")
 
         nuclei_input = httpx_path if hx.strip() and httpx_path.is_file() else target_file
         httpx_tags = parse_httpx_tech_tags(hx) if hx.strip() else []
@@ -268,21 +319,54 @@ def run_per_subdomain_web_pipeline(
                 level="info",
             )
 
-        if run_nuclei:
-            nu = run_nuclei_on_list(
-                scan_id, host, nuclei_input, templates, severities, tags=httpx_tags,
-            )
-            if nu.strip():
+        action = _abort("5")
+        if action == "cancel":
+            break
+        if action == "skip_web":
+            log_activity("Web adımı atlandı — mevcut çıktılarla devam.", level="warning")
+            break
+
+        if run_nuclei and not web_substep_skipped(config, "5"):
+            if not (config.get("module_started_at") or {}).get("5"):
+                mark_module_started(scan, "5")
+            scan.update_progress("5", f"Nuclei: {host}", scan.progress_percent)
+            token = bind_scan_log(scan_id, "5")
+            try:
+                nu = run_nuclei_on_list(
+                    scan_id, host, nuclei_input, templates, severities, tags=httpx_tags,
+                )
+            finally:
+                reset_scan_log(token)
+            if check_abort(scan_id, "5") == "skip" or check_abort(scan_id, "web") == "skip":
+                _skip_substep("5", MODULE_LABELS["5"])
+            elif nu.strip():
                 nuclei_all.append(f"=== {host} ===\n{nu}")
 
-        if run_katana:
-            ka = run_katana_on_target(
-                scan_id, host, depth=depth,
-                httpx_file=httpx_path if hx.strip() else None,
-            )
-            if ka.strip():
+        action = _abort("7")
+        if action == "cancel":
+            break
+        if action == "skip_web":
+            log_activity("Web adımı atlandı — mevcut çıktılarla devam.", level="warning")
+            break
+
+        if run_katana and not web_substep_skipped(config, "7"):
+            if not (config.get("module_started_at") or {}).get("7"):
+                mark_module_started(scan, "7")
+            scan.update_progress("7", f"Katana: {host}", scan.progress_percent)
+            token = bind_scan_log(scan_id, "7")
+            try:
+                ka = run_katana_on_target(
+                    scan_id, host, depth=depth,
+                    httpx_file=httpx_path if hx.strip() else None,
+                )
+            finally:
+                reset_scan_log(token)
+            if check_abort(scan_id, "7") == "skip" or check_abort(scan_id, "web") == "skip":
+                _skip_substep("7", MODULE_LABELS["7"])
+            elif ka.strip():
                 katana_all.append(f"=== {host} ===\n{ka}")
 
+    scan.update_progress("web", "Alt alan web analizi tamamlanıyor…", scan.progress_percent)
     return {
         "wayback": "\n".join(wayback_all),
         "httpx": "\n".join(httpx_all),

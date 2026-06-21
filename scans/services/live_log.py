@@ -48,6 +48,7 @@ def module_status_for_scan(scan) -> list[dict]:
         if scan.status == scan.Status.RUNNING and (
             choice == scan.current_module
             or (scan.current_module == "web" and choice in WEB_MODULE_IDS)
+            or (scan.current_module in WEB_MODULE_IDS and choice == scan.current_module)
             or (scan.current_module == "8" and choice == "1")
         ):
             return "running"

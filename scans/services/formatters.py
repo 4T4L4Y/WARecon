@@ -96,7 +96,6 @@ def format_subdomain(text: str) -> str:
         if host:
             lines.append(
                 f'<div class="output-line">'
-                f'<i class="tim-icons icon-world mr-2"></i>'
                 f'<span class="output-host">{_esc(host)}</span>'
                 f"</div>"
             )
@@ -120,11 +119,24 @@ FORMATTERS = {
 }
 
 
+def strip_html_output(text: str) -> str:
+    """Plain-text çıktıya dönüştür; yanlışlıkla kaydedilmiş HTML etiketlerini temizle."""
+    if not text:
+        return ""
+    if "<" not in text:
+        return text
+    cleaned = re.sub(r"<br\s*/?>", "\n", text, flags=re.I)
+    cleaned = re.sub(r"</div>\s*", "\n", cleaned, flags=re.I)
+    cleaned = re.sub(r"<[^>]+>", "", cleaned)
+    return html.unescape(cleaned).strip()
+
+
 def format_module_output(text: str, module: str) -> str:
-    if not text or not text.strip():
+    plain = strip_html_output(text)
+    if not plain or not plain.strip():
         return '<p class="text-muted mb-0">Sonuç yok.</p>'
     formatter = FORMATTERS.get(module, format_default)
-    return formatter(text)
+    return formatter(plain)
 
 
 def parse_nmap_exploits(nmap_text: str) -> list[dict]:

@@ -9,6 +9,16 @@
   </div>
   <div class="col-sm-6 text-sm-right">
     <span class="badge badge-info" id="statusBadge">{{ scan.get_status_display }}</span>
+    <div id="progressNavActions" class="mt-2{% if scan.status != 'completed' and scan.status != 'awaiting_subdomains' %} d-none{% endif %}">
+      <a href="{% url 'scans:select_subdomains' scan.pk %}" id="goSelectSubdomains"
+         class="btn btn-sm btn-warning mb-1{% if scan.status != 'awaiting_subdomains' %} d-none{% endif %}">
+        Alt Alan Seç
+      </a>
+      <a href="{% url 'scans:detail' scan.pk %}" id="goResults"
+         class="btn btn-sm btn-success mb-1{% if scan.status != 'completed' %} d-none{% endif %}">
+        Sonuçlara Git
+      </a>
+    </div>
   </div>
 </div>
 {% endblock %}
@@ -69,6 +79,8 @@
   window.SCAN_ID = {{ scan.pk }};
   window.SCAN_EVENTS_URL = "{% url 'scans:events' scan.pk %}";
   window.SCAN_DETAIL_URL = "{% url 'scans:detail' scan.pk %}";
+  window.SCAN_SELECT_URL = "{% url 'scans:select_subdomains' scan.pk %}";
 </script>
+<span id="initial-scan-status" data-status="{{ scan.status }}" class="d-none"></span>
 <script src="{% static 'js/progress.js' %}"></script>
 {% endblock %}

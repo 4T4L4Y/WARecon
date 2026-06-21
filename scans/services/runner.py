@@ -1,15 +1,11 @@
 import logging
-import shutil
 import subprocess
 from pathlib import Path
 
 from .live_log import log_activity
+from .tool_paths import resolve_executable, tool_available
 
 logger = logging.getLogger(__name__)
-
-
-def tool_available(name: str) -> bool:
-    return shutil.which(name) is not None
 
 
 def run_command(args: list[str], *, output_file: Path | None = None) -> int:
@@ -18,12 +14,17 @@ def run_command(args: list[str], *, output_file: Path | None = None) -> int:
         return 1
 
     tool = args[0]
-    if not tool_available(tool):
-        logger.warning("Tool not found on PATH: %s", tool)
-        log_activity(f"Araç bulunamadı: {tool}", level="error")
+    resolved = resolve_executable(tool)
+    if not resolved:
+        logger.warning("Tool not found: %s", tool)
+        log_activity(
+            f"Araç bulunamadı: {tool} (PATH veya .venv/bin kontrol edin)",
+            level="error",
+        )
         return 127
 
-    cmd_line = " ".join(args)
+    run_args = [resolved, *args[1:]]
+    cmd_line = " ".join(run_args)
     logger.info("Running: %s", cmd_line)
     log_activity(f"$ {cmd_line}", level="cmd")
 
@@ -33,7 +34,7 @@ def run_command(args: list[str], *, output_file: Path | None = None) -> int:
             output_file.parent.mkdir(parents=True, exist_ok=True)
             file_handle = open(output_file, "w", encoding="utf-8")
             proc = subprocess.Popen(
-                args,
+                run_args,
                 stdin=subprocess.DEVNULL,
                 stdout=file_handle,
                 stderr=subprocess.PIPE,
@@ -48,7 +49,7 @@ def run_command(args: list[str], *, output_file: Path | None = None) -> int:
             code = proc.wait()
         else:
             proc = subprocess.Popen(
-                args,
+                run_args,
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,

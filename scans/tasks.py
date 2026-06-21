@@ -13,3 +13,7 @@ def enqueue_scan(scan_id: int) -> None:
         queue.enqueue(run_scan_job, scan_id, job_timeout=3600)
     except Exception:
         run_scan_job(scan_id)
+
+
+def enqueue_continue_scan(scan_id: int) -> None:
+    enqueue_scan(scan_id)

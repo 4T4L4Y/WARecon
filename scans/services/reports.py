@@ -12,10 +12,25 @@ from scans.services.formatters import nuclei_severity_counts
 from scans.services.output_paths import scan_output_dir
 from scans.services.pipeline import scan_to_context
 
+_pdf_font_registered = False
+
 
 def _font_path() -> Path:
-    path = Path(settings.BASE_DIR) / "static" / "fonts" / "DejaVuSans.ttf"
-    return path
+    return Path(settings.BASE_DIR) / "static" / "fonts" / "DejaVuSans.ttf"
+
+
+def _ensure_pdf_font() -> None:
+    global _pdf_font_registered
+    if _pdf_font_registered:
+        return
+    path = _font_path()
+    if not path.is_file():
+        return
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+
+    pdfmetrics.registerFont(TTFont("DejaVuSans", str(path.resolve())))
+    _pdf_font_registered = True
 
 
 def _pdf_link_callback(uri: str, _rel) -> str:
@@ -85,6 +100,31 @@ def _severity_chart_base64(counts: dict[str, int]) -> str:
         return ""
 
 
+def _report_sections(scan: Scan, context: dict) -> list[dict]:
+    sections = [
+        ("2", "Subdomain Keşfi", "subdomain_output"),
+        ("6", "DNS Kayıtları", "dnsx_output"),
+        ("3", "Wayback URL (alt alan bazlı)", "wayback_output"),
+        ("4", "HTTPX", "httpx_output"),
+        ("7", "Katana Crawl", "katana_output"),
+        ("1", "Port Tarama (Naabu)", "naabu_output"),
+        ("8", "Servis Tarama (Nmap)", "nmap_output"),
+        ("5", "Nuclei Zafiyet", "nuclei_output"),
+    ]
+    modules = set(scan.modules or [])
+    result = []
+    for choice, title, key in sections:
+        if choice not in modules and not (choice == "8" and "1" in modules):
+            continue
+        body = context.get(key, "") or ""
+        result.append({
+            "title": title,
+            "body": body,
+            "is_empty": not str(body).strip(),
+        })
+    return result
+
+
 def build_report_context(scan: Scan) -> dict:
     ctx = scan_to_context(scan)
     ctx["scan"] = scan
@@ -99,6 +139,7 @@ def build_report_context(scan: Scan) -> dict:
     ctx["severity_chart_b64"] = _severity_chart_base64(counts)
     ctx["exploit_suggestions"] = (scan.config or {}).get("nmap_exploit_suggestions", [])
     ctx["font_path"] = str(_font_path().resolve())
+    ctx["report_sections"] = _report_sections(scan, ctx)
     return ctx
 
 
@@ -107,6 +148,7 @@ def render_html_report(scan: Scan) -> str:
 
 
 def render_pdf_report(scan: Scan) -> bytes:
+    _ensure_pdf_font()
     html = render_html_report(scan)
     buffer = BytesIO()
     pisa.CreatePDF(

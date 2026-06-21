@@ -7,6 +7,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const liveLog = document.getElementById('liveLog');
   const logCount = document.getElementById('logCount');
   const moduleSteps = document.getElementById('moduleSteps');
+  const navActions = document.getElementById('progressNavActions');
 
   let totalLogs = 0;
   const initialEl = document.getElementById('initial-logs-data');
@@ -53,6 +54,46 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  function showNavActions(status) {
+    if (!navActions) return;
+    navActions.classList.remove('d-none');
+    const selectBtn = document.getElementById('goSelectSubdomains');
+    const resultsBtn = document.getElementById('goResults');
+    if (selectBtn) {
+      selectBtn.classList.toggle('d-none', status !== 'awaiting_subdomains');
+    }
+    if (resultsBtn) {
+      resultsBtn.classList.toggle('d-none', status !== 'completed');
+    }
+  }
+
+  function handleStatus(data) {
+    if (data.status === 'awaiting_subdomains') {
+      badge.textContent = 'Alt Alan Seçimi';
+      badge.className = 'badge badge-warning';
+      msg.textContent = data.message || 'Alt alan seçimi bekleniyor…';
+      showNavActions('awaiting_subdomains');
+      source.close();
+      if (window.SCAN_SELECT_URL) {
+        setTimeout(() => { window.location.href = window.SCAN_SELECT_URL; }, 800);
+      }
+      return;
+    }
+    if (data.status === 'completed') {
+      badge.textContent = 'Tamamlandı';
+      badge.className = 'badge badge-success';
+      showNavActions('completed');
+      source.close();
+      return;
+    }
+    if (data.status === 'failed') {
+      badge.textContent = 'Başarısız';
+      badge.className = 'badge badge-danger';
+      msg.textContent = data.error || data.message || 'Tarama başarısız.';
+      source.close();
+    }
+  }
+
   const source = new EventSource(window.SCAN_EVENTS_URL);
 
   source.onmessage = (event) => {
@@ -69,20 +110,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (data.modules) {
       updateModules(data.modules);
     }
-    if (data.status === 'completed') {
-      badge.textContent = 'Tamamlandı';
-      badge.className = 'badge badge-success';
-      source.close();
-      setTimeout(() => { window.location.href = window.SCAN_DETAIL_URL; }, 1500);
-    } else if (data.status === 'failed') {
-      badge.textContent = 'Başarısız';
-      badge.className = 'badge badge-danger';
-      msg.textContent = data.error || data.message || 'Tarama başarısız.';
-      source.close();
-    }
+    handleStatus(data);
   };
 
   source.onerror = () => {
     source.close();
   };
+
+  const initialStatus = document.getElementById('initial-scan-status');
+  if (initialStatus) {
+    showNavActions(initialStatus.dataset.status);
+  }
 });

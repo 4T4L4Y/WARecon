@@ -7,6 +7,7 @@ class Scan(models.Model):
     class Status(models.TextChoices):
         PENDING = "pending", "Bekliyor"
         RUNNING = "running", "Çalışıyor"
+        AWAITING_SUBDOMAIN_SELECTION = "awaiting_subdomains", "Alt Alan Seçimi"
         COMPLETED = "completed", "Tamamlandı"
         FAILED = "failed", "Başarısız"
 

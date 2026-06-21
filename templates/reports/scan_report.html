@@ -68,9 +68,13 @@
       border-radius: 4px;
       font-size: 9px;
       white-space: pre-wrap;
-      word-break: break-all;
-      max-height: 400px;
-      overflow: hidden;
+      word-break: break-word;
+      page-break-inside: auto;
+    }
+    .empty-note {
+      color: #888;
+      font-style: italic;
+      padding: 8px 0;
     }
     section { page-break-inside: avoid; margin-bottom: 1rem; }
     .chart-img { max-width: 100%; height: auto; margin: 10px 0; }
@@ -137,30 +141,16 @@
   </section>
   {% endif %}
 
-  {% if subdomain_output %}
-  <section><h2>Subdomain Keşfi</h2><pre>{{ subdomain_output }}</pre></section>
-  {% endif %}
-  {% if dnsx_output %}
-  <section><h2>DNS Kayıtları</h2><pre>{{ dnsx_output }}</pre></section>
-  {% endif %}
-  {% if wayback_output %}
-  <section><h2>Wayback URL (alt alan bazlı)</h2><pre>{{ wayback_output }}</pre></section>
-  {% endif %}
-  {% if httpx_output %}
-  <section><h2>HTTPX</h2><pre>{{ httpx_output }}</pre></section>
-  {% endif %}
-  {% if katana_output %}
-  <section><h2>Katana Crawl</h2><pre>{{ katana_output }}</pre></section>
-  {% endif %}
-  {% if naabu_output %}
-  <section><h2>Port Tarama (Naabu)</h2><pre>{{ naabu_output }}</pre></section>
-  {% endif %}
-  {% if nmap_output %}
-  <section><h2>Servis Tarama (Nmap)</h2><pre>{{ nmap_output }}</pre></section>
-  {% endif %}
-  {% if nuclei_output %}
-  <section><h2>Nuclei Zafiyet</h2><pre>{{ nuclei_output }}</pre></section>
-  {% endif %}
+  {% for section in report_sections %}
+  <section>
+    <h2>{{ section.title }}</h2>
+    {% if section.is_empty %}
+    <p class="empty-note">Bu modül için çıktı yok.</p>
+    {% else %}
+    <pre>{{ section.body }}</pre>
+    {% endif %}
+  </section>
+  {% endfor %}
 
   <p style="color:#888; font-size:9px; margin-top:2rem; text-align:center;">
     WARecon — Bu rapor yalnızca yetkili güvenlik testleri için üretilmiştir.

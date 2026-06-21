@@ -3,9 +3,14 @@ from django.test import TestCase
 from django.urls import reverse
 
 from scans.models import ScanLog
-from scans.services.formatters import format_naabu, parse_nmap_exploits
+from scans.services.formatters import format_naabu, parse_nmap_exploits, strip_html_output
 from scans.services.live_log import module_status_for_scan
-from scans.services.pipeline import create_scan, validate_pipeline
+from scans.services.pipeline import (
+    apply_subdomain_selection,
+    create_scan,
+    validate_pipeline,
+)
+from scans.models import Scan
 
 
 class AnonymousIndexRedirectTest(TestCase):
@@ -54,3 +59,35 @@ class FormatterTest(TestCase):
         findings = parse_nmap_exploits(text)
         self.assertEqual(len(findings), 1)
         self.assertEqual(findings[0]["cve"], "CVE-2021-1234")
+
+    def test_strip_html_output(self):
+        raw = '<div class="output-line"><span class="output-host">a.com</span></div>'
+        self.assertEqual(strip_html_output(raw), "a.com")
+
+
+class SubdomainSelectionTest(TestCase):
+    def setUp(self):
+        user = get_user_model().objects.create_user(username="seluser", password="pass12345")
+        self.scan = create_scan(user, {
+            "domain": "example.com",
+            "choices": ["2", "3", "4"],
+        })
+        self.scan.status = Scan.Status.AWAITING_SUBDOMAIN_SELECTION
+        self.scan.config = {
+            **self.scan.config,
+            "discovered_subdomains": ["a.example.com", "b.example.com"],
+        }
+        self.scan.save()
+
+    def test_apply_subdomain_selection(self):
+        apply_subdomain_selection(
+            self.scan,
+            ["a.example.com"],
+            run_wayback=True,
+            run_httpx=True,
+            run_nuclei=False,
+            run_katana=False,
+        )
+        self.scan.refresh_from_db()
+        self.assertEqual(self.scan.config["selected_subdomains"], ["a.example.com"])
+        self.assertEqual(self.scan.status, Scan.Status.RUNNING)

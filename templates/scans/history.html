@@ -60,6 +60,9 @@
             </td>
             <td class="text-muted">{{ scan.created_at|date:"d.m.Y H:i" }}</td>
             <td class="text-right text-nowrap">
+              {% if scan.status == 'running' or scan.status == 'awaiting_subdomains' or scan.status == 'pending' %}
+              <a href="{% url 'scans:progress' scan.pk %}" class="btn btn-sm btn-info">Canlı İzleme</a>
+              {% endif %}
               <a href="{% url 'scans:detail' scan.pk %}" class="btn btn-sm btn-primary">Görüntüle</a>
               <a href="{% url 'scans:report_pdf' scan.pk %}" class="btn btn-sm btn-outline-default">PDF</a>
               <form method="post" action="{% url 'scans:archive' scan.pk %}" class="d-inline">

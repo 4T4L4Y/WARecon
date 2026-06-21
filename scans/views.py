@@ -16,10 +16,10 @@ from .forms import ScanForm
 from .models import Scan, ScanLog
 from .services.live_log import module_status_for_scan
 from .services.output_paths import cleanup_scan_outputs, scan_output_dir
-from .services.pipeline import create_scan, scan_to_context
+from .services.pipeline import apply_subdomain_selection, create_scan, scan_to_context
 from .services.reports import render_html_report, render_pdf_report
 from scans.services import tools
-from .tasks import enqueue_scan
+from .tasks import enqueue_continue_scan, enqueue_scan
 
 
 def _resolve_user(request):
@@ -163,6 +163,57 @@ def scan_events(request, pk: int):
     response = StreamingHttpResponse(event_stream(), content_type="text/event-stream")
     response["Cache-Control"] = "no-cache"
     return response
+
+
+@login_required_basic
+@require_http_methods(["GET", "POST"])
+def select_subdomains(request, pk: int):
+    scan = get_object_or_404(_user_scans(request.user), pk=pk)
+    if scan.status != Scan.Status.AWAITING_SUBDOMAIN_SELECTION:
+        return redirect("scans:progress", pk=pk)
+
+    config = scan.config or {}
+    hosts = config.get("discovered_subdomains") or []
+    modules = set(scan.modules or [])
+    web_flags = {
+        "wayback": "3" in modules,
+        "httpx": "4" in modules,
+        "nuclei": "5" in modules,
+        "katana": "7" in modules,
+    }
+
+    if request.method == "POST":
+        selected = request.POST.getlist("subdomains")
+        if not selected:
+            messages.error(request, "En az bir alt alan seçmelisiniz.")
+        else:
+            run_wayback = web_flags["wayback"] and "run_wayback" in request.POST
+            run_httpx = web_flags["httpx"] and "run_httpx" in request.POST
+            run_nuclei = web_flags["nuclei"] and "run_nuclei" in request.POST
+            run_katana = web_flags["katana"] and "run_katana" in request.POST
+            if not any((run_wayback, run_httpx, run_nuclei, run_katana)):
+                messages.error(request, "En az bir web modülü seçmelisiniz.")
+            else:
+                apply_subdomain_selection(
+                    scan,
+                    selected,
+                    run_wayback=run_wayback,
+                    run_httpx=run_httpx,
+                    run_nuclei=run_nuclei,
+                    run_katana=run_katana,
+                )
+                enqueue_continue_scan(scan.pk)
+                messages.success(
+                    request,
+                    f"{len(selected)} alt alan için tarama devam ediyor.",
+                )
+                return redirect("scans:progress", pk=pk)
+
+    return render(request, "scans/select_subdomains.html", {
+        "scan": scan,
+        "hosts": hosts,
+        "web_flags": web_flags,
+    })
 
 
 @login_required_basic

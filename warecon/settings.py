@@ -89,6 +89,12 @@ LOGOUT_REDIRECT_URL = "scans:index"
 
 OUTPUTS_DIR = BASE_DIR / "outputs"
 
+# CLI araçları: venv/bin (waybackpy) ve ~/go/bin (ProjectDiscovery)
+TOOL_PATH_EXTRA = [
+    str(BASE_DIR / ".venv" / "bin"),
+    str(Path.home() / "go" / "bin"),
+]
+
 MESSAGE_TAGS = {
     message_constants.ERROR: "danger",
     message_constants.SUCCESS: "success",

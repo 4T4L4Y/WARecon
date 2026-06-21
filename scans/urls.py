@@ -16,6 +16,7 @@ urlpatterns = [
     path("history/", views.history, name="history"),
     path("history/<int:pk>/", views.scan_detail, name="detail"),
     path("scan/<int:pk>/progress/", views.progress, name="progress"),
+    path("scan/<int:pk>/select-subdomains/", views.select_subdomains, name="select_subdomains"),
     path("scan/<int:pk>/events/", views.scan_events, name="events"),
     path("reports/<int:pk>/html/", views.report_html, name="report_html"),
     path("reports/<int:pk>/pdf/", views.report_pdf, name="report_pdf"),

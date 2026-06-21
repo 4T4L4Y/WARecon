@@ -136,6 +136,7 @@ def run_per_subdomain_web_pipeline(
     domain: str,
     config: dict,
     *,
+    hosts: list[str] | None = None,
     run_wayback: bool,
     run_httpx: bool,
     run_nuclei: bool,
@@ -143,7 +144,10 @@ def run_per_subdomain_web_pipeline(
 ) -> dict[str, str]:
     """Wayback per subdomain, then HTTPX/Nuclei/Katana on URLs or fallback host."""
     scan_dir = scan_output_dir(scan_id)
-    hosts = list_subdomains(scan_dir, domain)
+    if hosts is None:
+        hosts = list_subdomains(scan_dir, domain)
+    if not hosts:
+        hosts = [domain]
     wayback_all: list[str] = []
     httpx_all: list[str] = []
     nuclei_all: list[str] = []

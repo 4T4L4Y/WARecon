@@ -108,3 +108,24 @@ def run_nuclei(domain: str, raw_url: str, templates: str, severities: list[str])
 
     run_command(args)
     return read_combined(outputs_dir(), domain, "_nuclei.txt")
+
+
+def run_dnsx(domain: str) -> str:
+    out = outputs_dir() / f"{domain}_dnsx.txt"
+    sub_file = outputs_dir() / f"{domain}_subdomains.txt"
+    if sub_file.exists() and sub_file.stat().st_size > 0:
+        run_command(["dnsx", "-l", str(sub_file), "-resp", "-o", str(out)])
+    else:
+        run_command(["dnsx", "-d", domain, "-resp", "-o", str(out)])
+    return read_combined(outputs_dir(), domain, "_dnsx.txt")
+
+
+def run_katana(domain: str, depth: str = "2") -> str:
+    out = outputs_dir() / f"{domain}_katana.txt"
+    httpx_file = outputs_dir() / f"{domain}_httpx.txt"
+    args = ["katana", "-silent", "-depth", depth, "-o", str(out)]
+    if httpx_file.exists() and httpx_file.stat().st_size > 0:
+        run_command([*args, "-list", str(httpx_file)])
+    else:
+        run_command([*args, "-u", f"https://{domain}"])
+    return read_combined(outputs_dir(), domain, "_katana.txt")

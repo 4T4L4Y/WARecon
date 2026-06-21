@@ -24,13 +24,34 @@
             <span class="fw-bold">WARecon</span>
           </a>
         </h1>
-        <div class="navbar-nav flex-row order-md-last">
+        <div class="navbar-nav flex-row order-md-last align-items-center">
           <div class="nav-item d-none d-md-flex me-3">
             <span class="badge bg-yellow-lt text-yellow">
               <i class="ti ti-alert-triangle me-1"></i>
               Yalnızca yetkili hedeflerde kullanın
             </span>
           </div>
+          {% if user.is_authenticated %}
+          <div class="nav-item dropdown">
+            <a href="#" class="nav-link d-flex lh-1 text-reset p-0" data-bs-toggle="dropdown">
+              <span class="avatar avatar-sm bg-primary-lt">{{ user.username|slice:":1"|upper }}</span>
+              <div class="d-none d-xl-block ps-2">
+                <div>{{ user.username }}</div>
+              </div>
+            </a>
+            <div class="dropdown-menu dropdown-menu-end">
+              <a class="dropdown-item" href="{% url 'scans:history' %}">Geçmiş</a>
+              <a class="dropdown-item" href="/api/scans/" target="_blank">API</a>
+              <div class="dropdown-divider"></div>
+              <form method="post" action="{% url 'scans:logout' %}">
+                {% csrf_token %}
+                <button type="submit" class="dropdown-item">Çıkış</button>
+              </form>
+            </div>
+          </div>
+          {% else %}
+          <a href="{% url 'scans:login' %}" class="btn btn-sm btn-primary">Giriş</a>
+          {% endif %}
         </div>
       </div>
     </header>
@@ -58,17 +79,9 @@
               </a>
             </li>
             <li class="nav-item">
-              <a class="nav-link disabled" href="#" tabindex="-1" aria-disabled="true">
-                <span class="nav-link-icon"><i class="ti ti-file-report"></i></span>
-                <span class="nav-link-title">Raporlar</span>
-                <span class="badge badge-sm bg-secondary-lt ms-auto">Yakında</span>
-              </a>
-            </li>
-            <li class="nav-item">
-              <a class="nav-link disabled" href="#" tabindex="-1" aria-disabled="true">
+              <a class="nav-link" href="/api/scans/" target="_blank">
                 <span class="nav-link-icon"><i class="ti ti-api"></i></span>
                 <span class="nav-link-title">API</span>
-                <span class="badge badge-sm bg-secondary-lt ms-auto">Yakında</span>
               </a>
             </li>
             <li class="nav-item mt-auto">
@@ -83,8 +96,10 @@
             <div class="d-flex flex-wrap gap-1">
               <span class="badge bg-red-lt">Naabu</span>
               <span class="badge bg-green-lt">Subfinder</span>
+              <span class="badge bg-cyan-lt">dnsx</span>
               <span class="badge bg-yellow-lt">Wayback</span>
               <span class="badge bg-blue-lt">HTTPX</span>
+              <span class="badge bg-orange-lt">Katana</span>
               <span class="badge bg-purple-lt">Nuclei</span>
             </div>
           </div>

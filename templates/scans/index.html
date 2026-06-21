@@ -27,6 +27,7 @@
 
 {% block content %}
 <div class="row g-4">
+  {% if not scan %}
   <div class="col-lg-5">
     <div class="card">
       <div class="card-header">
@@ -68,6 +69,8 @@
                 {% include "scans/partials/module_card.html" with value="3" icon="ti-archive" color="yellow" title="Wayback URL" desc="Waybackpy — arşiv URL" %}
                 {% include "scans/partials/module_card.html" with value="4" icon="ti-link" color="blue" title="Canlı URL" desc="HTTPX — aktif endpoint" %}
                 {% include "scans/partials/module_card.html" with value="5" icon="ti-shield" color="purple" title="Zafiyet" desc="Nuclei — güvenlik açıkları" %}
+                {% include "scans/partials/module_card.html" with value="6" icon="ti-server" color="cyan" title="DNS Kayıtları" desc="dnsx — A/AAAA/MX vb." %}
+                {% include "scans/partials/module_card.html" with value="7" icon="ti-route" color="orange" title="Web Crawl" desc="Katana — endpoint keşfi" %}
               </div>
             </div>
           </div>
@@ -139,6 +142,14 @@
             </div>
           </div>
 
+          <div id="katanaOptions" class="card card-sm bg-secondary-lt mb-3 d-none">
+            <div class="card-body">
+              <div class="subheader mb-2">Katana Ayarları</div>
+              <label class="form-label" for="katanaDepth">Crawl derinliği</label>
+              <input type="text" class="form-control form-control-sm" name="katanaDepth" id="katanaDepth" value="2" placeholder="2">
+            </div>
+          </div>
+
           <button type="submit" class="btn btn-primary w-100">
             <i class="ti ti-player-play me-2"></i>Taramayı Başlat
           </button>
@@ -146,8 +157,9 @@
       </div>
     </div>
   </div>
+  {% endif %}
 
-  <div class="col-lg-7">
+  <div class="col-lg-{% if scan %}12{% else %}7{% endif %}">
     {% include "scans/partials/results.html" %}
   </div>
 </div>

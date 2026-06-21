@@ -1,5 +1,3 @@
-from dataclasses import dataclass, field
-
 from django.utils import timezone
 
 from scans.models import Scan, ScanModuleResult
@@ -12,8 +10,8 @@ from .validators import (
     validate_template_ids,
 )
 
-# Mantıksal pipeline sırası: keşif → arşiv → doğrulama → port → zafiyet
-MODULE_ORDER = ["2", "3", "4", "1", "5"]
+# Keşif → DNS → arşiv → doğrulama → crawl → port → zafiyet
+MODULE_ORDER = ["2", "6", "3", "4", "7", "1", "5"]
 
 MODULE_MAP = {
     "1": ScanModuleResult.Module.NAABU,
@@ -21,111 +19,178 @@ MODULE_MAP = {
     "3": ScanModuleResult.Module.WAYBACK,
     "4": ScanModuleResult.Module.HTTPX,
     "5": ScanModuleResult.Module.NUCLEI,
+    "6": ScanModuleResult.Module.DNSX,
+    "7": ScanModuleResult.Module.KATANA,
+}
+
+MODULE_LABELS = {
+    "1": "Port Tarama (Naabu)",
+    "2": "Subdomain Keşfi (Subfinder)",
+    "3": "Wayback URL",
+    "4": "Canlı URL (HTTPX)",
+    "5": "Zafiyet Tarama (Nuclei)",
+    "6": "DNS Kayıtları (dnsx)",
+    "7": "Web Crawl (Katana)",
+}
+
+OUTPUT_SUFFIX = {
+    ScanModuleResult.Module.NAABU: "_naabu.txt",
+    ScanModuleResult.Module.SUBDOMAIN: "_subdomains.txt",
+    ScanModuleResult.Module.WAYBACK: "_wayback.txt",
+    ScanModuleResult.Module.HTTPX: "_httpx.txt",
+    ScanModuleResult.Module.NUCLEI: "_nuclei.txt",
+    ScanModuleResult.Module.DNSX: "_dnsx.txt",
+    ScanModuleResult.Module.KATANA: "_katana.txt",
 }
 
 
-@dataclass
-class ScanOutputs:
-    domain: str = ""
-    naabu_output: str = ""
-    subdomain_output: str = ""
-    wayback_output: str = ""
-    httpx_output: str = ""
-    nuclei_output: str = ""
-    errors: list[str] = field(default_factory=list)
-
-
-def _ordered_choices(choices: list[str]) -> list[str]:
+def ordered_choices(choices: list[str]) -> list[str]:
     return [c for c in MODULE_ORDER if c in choices]
 
 
-def run_pipeline(form_data: dict) -> tuple[Scan, ScanOutputs]:
-    raw_input = form_data.get("domain", "")
-    domain = validate_domain(raw_input)
-    choices = form_data.get("choices", [])
-    ordered = _ordered_choices(choices)
-
+def validate_pipeline(choices: list[str]) -> None:
+    ordered = ordered_choices(choices)
     if "3" in ordered and "2" not in ordered:
         raise ValueError("Wayback modülü için önce Subdomain keşfi gereklidir.")
 
-    scan = Scan.objects.create(
+
+def create_scan(user, form_data: dict) -> Scan:
+    raw_input = form_data.get("domain", "")
+    domain = validate_domain(raw_input)
+    choices = ordered_choices(form_data.get("choices", []))
+    validate_pipeline(choices)
+
+    config = {
+        "naabuPorts": form_data.get("naabuPorts", ""),
+        "subdomainParams": form_data.get("subdomainParams", []),
+        "waybackKnownUrls": form_data.get("waybackKnownUrls", False),
+        "includeSubdomains": form_data.get("includeSubdomains", False),
+        "httpxFollowRedirects": form_data.get("httpxFollowRedirects", False),
+        "httpxStatusCode": form_data.get("httpxStatusCode", False),
+        "httpxMatchCodes": form_data.get("httpxMatchCodes", ""),
+        "nucleiTemplates": form_data.get("nucleiTemplates", ""),
+        "nucleiSeverity": form_data.get("nucleiSeverity", []),
+        "katanaDepth": form_data.get("katanaDepth", "2"),
+    }
+
+    return Scan.objects.create(
+        user=user,
         domain=domain,
         raw_input=raw_input,
-        modules=ordered,
-        status=Scan.Status.RUNNING,
+        modules=choices,
+        config=config,
+        status=Scan.Status.PENDING,
+        progress_message="Kuyruğa alındı…",
     )
 
-    outputs = ScanOutputs(domain=domain)
+
+def execute_scan(scan_id: int) -> None:
+    scan = Scan.objects.get(pk=scan_id)
+    scan.status = Scan.Status.RUNNING
+    scan.progress_percent = 0
+    scan.save(update_fields=["status", "progress_percent"])
+
+    config = scan.config or {}
+    domain = scan.domain
+    raw_input = scan.raw_input
+    ordered = scan.modules
+    total = len(ordered) or 1
 
     try:
-        for choice in ordered:
+        for index, choice in enumerate(ordered):
+            label = MODULE_LABELS.get(choice, choice)
+            percent = int((index / total) * 100)
+            scan.update_progress(choice, f"{label} çalışıyor…", percent)
+
             module_key = MODULE_MAP[choice]
-            output_text = ""
-
-            if choice == "1":
-                ports = validate_ports(form_data.get("naabuPorts", ""))
-                output_text = tools.run_naabu(domain, ports)
-                outputs.naabu_output = output_text
-
-            elif choice == "2":
-                params = form_data.get("subdomainParams", [])
-                output_text = tools.run_subfinder(domain, params)
-                outputs.subdomain_output = output_text
-
-            elif choice == "3":
-                output_text = tools.run_wayback(
-                    domain,
-                    known_urls=form_data.get("waybackKnownUrls", False),
-                    include_subdomains=form_data.get("includeSubdomains", False),
-                )
-                outputs.wayback_output = output_text
-
-            elif choice == "4":
-                match_codes = validate_status_codes(form_data.get("httpxMatchCodes", ""))
-                output_text = tools.run_httpx(
-                    domain,
-                    follow_redirects=form_data.get("httpxFollowRedirects", False),
-                    show_status=form_data.get("httpxStatusCode", False),
-                    match_codes=match_codes,
-                )
-                outputs.httpx_output = output_text
-
-            elif choice == "5":
-                templates = validate_template_ids(form_data.get("nucleiTemplates", ""))
-                output_text = tools.run_nuclei(
-                    domain,
-                    raw_input,
-                    templates,
-                    form_data.get("nucleiSeverity", []),
-                )
-                outputs.nuclei_output = output_text
+            output_text = _run_module(choice, domain, raw_input, config)
 
             ScanModuleResult.objects.create(
                 scan=scan,
                 module=module_key,
                 output=output_text,
-                output_file=_output_file_for(module_key, domain),
+                output_file=f"{domain}{OUTPUT_SUFFIX[module_key]}",
             )
 
         scan.status = Scan.Status.COMPLETED
+        scan.progress_percent = 100
+        scan.progress_message = "Tarama tamamlandı."
+        scan.current_module = ""
         scan.completed_at = timezone.now()
-        scan.save(update_fields=["status", "completed_at"])
-        return scan, outputs
-
+        scan.save(update_fields=[
+            "status", "progress_percent", "progress_message",
+            "current_module", "completed_at",
+        ])
     except Exception as exc:
         scan.status = Scan.Status.FAILED
         scan.error_message = str(exc)
+        scan.progress_message = f"Hata: {exc}"
         scan.completed_at = timezone.now()
-        scan.save(update_fields=["status", "error_message", "completed_at"])
+        scan.save(update_fields=[
+            "status", "error_message", "progress_message", "completed_at",
+        ])
         raise
 
 
-def _output_file_for(module: str, domain: str) -> str:
-    suffix_map = {
-        ScanModuleResult.Module.NAABU: f"{domain}_naabu.txt",
-        ScanModuleResult.Module.SUBDOMAIN: f"{domain}_subdomains.txt",
-        ScanModuleResult.Module.WAYBACK: f"{domain}_wayback.txt",
-        ScanModuleResult.Module.HTTPX: f"{domain}_httpx.txt",
-        ScanModuleResult.Module.NUCLEI: f"{domain}_nuclei.txt",
+def _run_module(choice: str, domain: str, raw_input: str, config: dict) -> str:
+    if choice == "1":
+        ports = validate_ports(config.get("naabuPorts", ""))
+        return tools.run_naabu(domain, ports)
+    if choice == "2":
+        return tools.run_subfinder(domain, config.get("subdomainParams", []))
+    if choice == "3":
+        return tools.run_wayback(
+            domain,
+            known_urls=config.get("waybackKnownUrls", False),
+            include_subdomains=config.get("includeSubdomains", False),
+        )
+    if choice == "4":
+        match_codes = validate_status_codes(config.get("httpxMatchCodes", ""))
+        return tools.run_httpx(
+            domain,
+            follow_redirects=config.get("httpxFollowRedirects", False),
+            show_status=config.get("httpxStatusCode", False),
+            match_codes=match_codes,
+        )
+    if choice == "5":
+        templates = validate_template_ids(config.get("nucleiTemplates", ""))
+        return tools.run_nuclei(
+            domain,
+            raw_input,
+            templates,
+            config.get("nucleiSeverity", []),
+        )
+    if choice == "6":
+        return tools.run_dnsx(domain)
+    if choice == "7":
+        depth = str(config.get("katanaDepth", "2"))
+        return tools.run_katana(domain, depth)
+    return ""
+
+
+def scan_to_context(scan: Scan) -> dict:
+    context = {
+        "domain": scan.domain,
+        "scan": scan,
+        "naabu_output": "",
+        "subdomain_output": "",
+        "wayback_output": "",
+        "httpx_output": "",
+        "nuclei_output": "",
+        "dnsx_output": "",
+        "katana_output": "",
     }
-    return suffix_map.get(module, "")
+    key_map = {
+        "naabu": "naabu_output",
+        "subdomain": "subdomain_output",
+        "wayback": "wayback_output",
+        "httpx": "httpx_output",
+        "nuclei": "nuclei_output",
+        "dnsx": "dnsx_output",
+        "katana": "katana_output",
+    }
+    for result in scan.results.all():
+        key = key_map.get(result.module)
+        if key:
+            context[key] = result.output
+    return context

@@ -11,9 +11,9 @@ class ScanModuleResultInline(admin.TabularInline):
 
 @admin.register(Scan)
 class ScanAdmin(admin.ModelAdmin):
-    list_display = ("domain", "status", "created_at", "completed_at")
+    list_display = ("domain", "user", "status", "progress_percent", "created_at", "completed_at")
     list_filter = ("status", "created_at")
-    search_fields = ("domain", "raw_input")
+    search_fields = ("domain", "raw_input", "user__username")
     readonly_fields = ("created_at", "completed_at")
     inlines = [ScanModuleResultInline]
 

@@ -59,6 +59,7 @@
           <td class="text-secondary">{{ scan.created_at|date:"d.m.Y H:i" }}</td>
           <td>
             <a href="{% url 'scans:detail' scan.pk %}" class="btn btn-sm btn-outline-primary">Görüntüle</a>
+            <a href="{% url 'scans:report_pdf' scan.pk %}" class="btn btn-sm btn-outline-secondary">PDF</a>
           </td>
         </tr>
         {% endfor %}

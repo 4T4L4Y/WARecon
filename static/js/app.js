@@ -8,6 +8,7 @@ function toggleOptions() {
     3: 'waybackOptions',
     4: 'httpxOptions',
     5: 'nucleiOptions',
+    7: 'katanaOptions',
   };
 
   Object.entries(map).forEach(([value, id]) => {
@@ -29,8 +30,8 @@ function applyPreset(preset) {
 
   const presets = {
     quick: ['2', '4'],
-    deep: ['2', '3', '4'],
-    full: ['1', '2', '3', '4', '5'],
+    deep: ['2', '6', '3', '4'],
+    full: ['1', '2', '6', '3', '4', '7', '5'],
   };
 
   (presets[preset] || []).forEach((value) => {

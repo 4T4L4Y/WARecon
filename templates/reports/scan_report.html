@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <title>WARecon Rapor — {{ scan.domain }}</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 2rem; color: #222; }
+    h1, h2 { color: #111; }
+    .meta { color: #666; margin-bottom: 2rem; }
+    pre { background: #f4f4f4; padding: 1rem; border-radius: 6px; font-size: 12px; white-space: pre-wrap; }
+    section { margin-bottom: 2rem; page-break-inside: avoid; }
+  </style>
+</head>
+<body>
+  <h1>WARecon Tarama Raporu</h1>
+  <div class="meta">
+    <p><strong>Domain:</strong> {{ scan.domain }}</p>
+    <p><strong>Tarih:</strong> {{ scan.created_at|date:"d.m.Y H:i" }}</p>
+    <p><strong>Durum:</strong> {{ scan.get_status_display }}</p>
+    <p><strong>Modüller:</strong> {{ scan.module_labels|join:", " }}</p>
+  </div>
+
+  {% if subdomain_output %}
+  <section><h2>Subdomain Keşfi</h2><pre>{{ subdomain_output }}</pre></section>
+  {% endif %}
+  {% if dnsx_output %}
+  <section><h2>DNS Kayıtları</h2><pre>{{ dnsx_output }}</pre></section>
+  {% endif %}
+  {% if wayback_output %}
+  <section><h2>Wayback URL</h2><pre>{{ wayback_output }}</pre></section>
+  {% endif %}
+  {% if httpx_output %}
+  <section><h2>HTTPX</h2><pre>{{ httpx_output }}</pre></section>
+  {% endif %}
+  {% if katana_output %}
+  <section><h2>Katana Crawl</h2><pre>{{ katana_output }}</pre></section>
+  {% endif %}
+  {% if naabu_output %}
+  <section><h2>Port Tarama</h2><pre>{{ naabu_output }}</pre></section>
+  {% endif %}
+  {% if nuclei_output %}
+  <section><h2>Nuclei Zafiyet</h2><pre>{{ nuclei_output }}</pre></section>
+  {% endif %}
+</body>
+</html>

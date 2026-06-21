@@ -1,0 +1,56 @@
+/* WARecon — Tabler özelleştirmeleri */
+
+.result-output {
+  margin: 0;
+  padding: 1rem;
+  background: var(--tblr-bg-surface-secondary);
+  border: 1px solid var(--tblr-border-color);
+  border-radius: var(--tblr-border-radius);
+  font-family: var(--tblr-font-monospace);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  max-height: 420px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.chart-wrap {
+  position: relative;
+  height: 280px;
+}
+
+.severity-legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--tblr-secondary);
+}
+
+.color-box {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.form-selectgroup-label {
+  width: 100%;
+}
+
+.navbar-vertical .navbar-nav {
+  min-height: calc(100vh - 8rem);
+}
+
+@media (min-width: 992px) {
+  .navbar-vertical .navbar-nav {
+    min-height: auto;
+  }
+}

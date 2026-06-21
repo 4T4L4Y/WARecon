@@ -3,7 +3,8 @@ from django.test import TestCase
 from django.urls import reverse
 
 from scans.models import ScanLog
-from scans.services.formatters import format_naabu, parse_nmap_exploits, strip_html_output
+from scans.services.formatters import format_naabu, format_dnsx, parse_nmap_exploits, strip_html_output
+from scans.services.output_utils import extract_urls_from_text, strip_ansi
 from scans.services.live_log import module_status_for_scan
 from scans.services.pipeline import (
     apply_subdomain_selection,
@@ -63,6 +64,18 @@ class FormatterTest(TestCase):
     def test_strip_html_output(self):
         raw = '<div class="output-line"><span class="output-host">a.com</span></div>'
         self.assertEqual(strip_html_output(raw), "a.com")
+
+    def test_format_dnsx_strips_ansi(self):
+        raw = "smtp.beymen.com [\x1b[35mA\x1b[0m] [\x1b[32m213.14.96.219\x1b[0m]"
+        html = format_dnsx(raw)
+        self.assertIn("smtp.beymen.com", html)
+        self.assertIn("213.14.96.219", html)
+        self.assertNotIn("\x1b", html)
+
+    def test_extract_urls_from_httpx(self):
+        text = "https://beymen.com [301,301,200]\n=== host ===\n"
+        urls = extract_urls_from_text(text)
+        self.assertEqual(urls, ["https://beymen.com"])
 
 
 class SubdomainSelectionTest(TestCase):

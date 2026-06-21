@@ -28,8 +28,12 @@ def _ensure_pdf_font() -> None:
         return
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
+    from xhtml2pdf import default as pisa_default
 
-    pdfmetrics.registerFont(TTFont("DejaVuSans", str(path.resolve())))
+    font_path = str(path.resolve())
+    pdfmetrics.registerFont(TTFont("DejaVuSans", font_path))
+    pisa_default.DEFAULT_FONT["dejavusans"] = "DejaVuSans"
+    pisa_default.DEFAULT_FONT["dejavu"] = "DejaVuSans"
     _pdf_font_registered = True
 
 
@@ -69,6 +73,7 @@ def _severity_chart_base64(counts: dict[str, int]) -> str:
         matplotlib.use("Agg")
         import matplotlib.pyplot as plt
 
+        plt.rcParams["font.family"] = "DejaVu Sans"
         labels = []
         values = []
         colors = {
@@ -140,6 +145,11 @@ def build_report_context(scan: Scan) -> dict:
     ctx["exploit_suggestions"] = (scan.config or {}).get("nmap_exploit_suggestions", [])
     ctx["font_path"] = str(_font_path().resolve())
     ctx["report_sections"] = _report_sections(scan, ctx)
+    ctx["subdomain_list"] = [
+        line.strip()
+        for line in (ctx.get("subdomain_output") or "").splitlines()
+        if line.strip()
+    ]
     return ctx
 
 

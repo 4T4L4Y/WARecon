@@ -2,6 +2,10 @@ import html
 import json
 import re
 
+from scans.services.output_utils import strip_ansi
+
+ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
 
 def _esc(text: str) -> str:
     return html.escape(text)
@@ -51,25 +55,107 @@ def format_nmap(text: str) -> str:
     return _wrap(lines)
 
 
+def format_dnsx(text: str) -> str:
+    lines = []
+    for raw in text.splitlines():
+        line = strip_ansi(raw).strip()
+        if not line:
+            continue
+        match = re.match(r"^(\S+)\s+\[([^\]]+)\]\s+\[([^\]]+)\]", line)
+        if match:
+            host, rtype, value = match.groups()
+            lines.append(
+                f'<div class="output-line">'
+                f'<span class="output-host">{_esc(host)}</span>'
+                f' <span class="output-sep">[{_esc(rtype)}]</span>'
+                f' <span class="output-port open">{_esc(value)}</span>'
+                f"</div>"
+            )
+        else:
+            lines.append(f'<div class="output-line">{_esc(line)}</div>')
+    return _wrap(lines)
+
+
 def format_httpx(text: str) -> str:
     lines = []
     for raw in text.splitlines():
-        line = raw.strip()
+        line = strip_ansi(raw).strip()
         if not line:
             continue
+        if line.startswith("===") and line.endswith("==="):
+            host = line.strip("= ").strip()
+            lines.append(
+                f'<div class="output-line output-header">'
+                f'<i class="tim-icons icon-world mr-1"></i>{_esc(host)}'
+                f"</div>"
+            )
+            continue
+        url = line
+        codes = ""
+        match = re.match(r"^(https?://\S+?)(?:\s+\[(.+)\])?$", line)
+        if match:
+            url, codes = match.group(1), (match.group(2) or "")
         status_cls = "output-url"
-        m = re.search(r"\[(\d{3})\]", line)
-        if m:
-            code = int(m.group(1))
-            if 200 <= code < 300:
-                status_cls = "status-2xx"
-            elif 300 <= code < 400:
-                status_cls = "status-3xx"
-            elif 400 <= code < 500:
-                status_cls = "status-4xx"
-            else:
-                status_cls = "status-5xx"
-        lines.append(f'<div class="output-line {status_cls}">{_esc(line)}</div>')
+        if codes:
+            code_matches = re.findall(r"\d{3}", codes)
+            if code_matches:
+                code = int(code_matches[-1])
+                if 200 <= code < 300:
+                    status_cls = "status-2xx"
+                elif 300 <= code < 400:
+                    status_cls = "status-3xx"
+                elif 400 <= code < 500:
+                    status_cls = "status-4xx"
+                else:
+                    status_cls = "status-5xx"
+        code_html = (
+            f' <span class="output-status">[{_esc(codes)}]</span>' if codes else ""
+        )
+        lines.append(
+            f'<div class="output-line {status_cls}">'
+            f'<span class="output-url-text">{_esc(url)}</span>{code_html}'
+            f"</div>"
+        )
+    return _wrap(lines)
+
+
+def format_katana(text: str) -> str:
+    lines = []
+    for raw in text.splitlines():
+        line = strip_ansi(raw).strip()
+        if not line:
+            continue
+        if line.startswith("===") and line.endswith("==="):
+            host = line.strip("= ").strip()
+            lines.append(
+                f'<div class="output-line output-header">{_esc(host)}</div>'
+            )
+            continue
+        lines.append(
+            f'<div class="output-line output-url">'
+            f'<span class="output-url-text">{_esc(line)}</span>'
+            f"</div>"
+        )
+    return _wrap(lines)
+
+
+def format_wayback(text: str) -> str:
+    lines = []
+    for raw in text.splitlines():
+        line = strip_ansi(raw).strip()
+        if not line:
+            continue
+        if line.startswith("===") and line.endswith("==="):
+            host = line.strip("= ").strip()
+            lines.append(
+                f'<div class="output-line output-header">{_esc(host)}</div>'
+            )
+            continue
+        display = line if len(line) <= 160 else line[:157] + "…"
+        lines.append(
+            f'<div class="output-line output-url" title="{_esc(line)}">'
+            f"{_esc(display)}</div>"
+        )
     return _wrap(lines)
 
 
@@ -113,16 +199,17 @@ FORMATTERS = {
     "httpx": format_httpx,
     "nuclei": format_nuclei,
     "subdomain": format_subdomain,
-    "wayback": format_default,
-    "dnsx": format_default,
-    "katana": format_default,
+    "wayback": format_wayback,
+    "dnsx": format_dnsx,
+    "katana": format_katana,
 }
 
 
 def strip_html_output(text: str) -> str:
-    """Plain-text çıktıya dönüştür; yanlışlıkla kaydedilmiş HTML etiketlerini temizle."""
+    """Plain-text çıktıya dönüştür; yanlışlıkla kaydedilmiş HTML/ANSI çıktısını temizle."""
     if not text:
         return ""
+    text = strip_ansi(text)
     if "<" not in text:
         return text
     cleaned = re.sub(r"<br\s*/?>", "\n", text, flags=re.I)

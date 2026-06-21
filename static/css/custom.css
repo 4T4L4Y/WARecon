@@ -32,6 +32,8 @@
 }
 
 .output-host { color: #00f2c3; font-weight: 600; }
+.output-url-text { color: #11cdef; }
+.output-status { color: rgba(255,255,255,0.55); font-size: 0.72rem; }
 .output-port.open { color: #fd5d93; font-weight: 700; }
 .output-sep { color: rgba(255,255,255,0.4); }
 .output-danger, .sev-critical { color: #fd5d93; }

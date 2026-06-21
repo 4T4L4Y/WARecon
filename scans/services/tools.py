@@ -3,6 +3,7 @@ from pathlib import Path
 
 from .live_log import log_activity
 from .output_paths import list_subdomains, read_combined, read_file, safe_name, scan_output_dir
+from .output_utils import normalize_tool_output, prepare_url_input_file, strip_ansi, write_url_list
 from .runner import run_command
 
 
@@ -43,30 +44,28 @@ def run_dnsx(scan_id: int, domain: str) -> str:
     out = scan_dir / f"{domain}_dnsx.txt"
     sub_file = scan_dir / f"{domain}_subdomains.txt"
     if sub_file.exists() and sub_file.stat().st_size > 0:
-        run_command(["dnsx", "-l", str(sub_file), "-resp", "-o", str(out)])
+        run_command(["dnsx", "-l", str(sub_file), "-resp", "-nc", "-o", str(out)])
     else:
-        run_command(["dnsx", "-d", domain, "-resp", "-o", str(out)])
-    return read_file(out)
+        run_command(["dnsx", "-d", domain, "-resp", "-nc", "-o", str(out)])
+    return normalize_tool_output(read_file(out))
 
 
 def run_wayback_host(
     scan_id: int,
     host: str,
     *,
-    known_urls: bool = False,
+    known_urls: bool = True,
     include_subdomains: bool = False,
 ) -> str:
     scan_dir = scan_output_dir(scan_id)
     out = _target_file(scan_dir, host, "_wayback.txt")
-    suffix_args: list[str] = []
-    if known_urls:
-        suffix_args.append("--known_urls")
+    suffix_args = ["--known_urls"]
     if include_subdomains:
-        suffix_args.append("--subdomains")
+        suffix_args.append("--subdomain")
     args = ["waybackpy", "-u", host, *suffix_args]
     log_activity(f"Wayback: {host}")
     run_command(args, output_file=out)
-    return read_file(out)
+    return normalize_tool_output(read_file(out))
 
 
 def run_httpx_on_list(
@@ -88,7 +87,12 @@ def run_httpx_on_list(
     if match_codes:
         base.extend(["-mc", match_codes])
     run_command([*base, "-l", str(input_file), "-o", str(out)])
-    return read_file(out)
+    return normalize_tool_output(read_file(out))
+
+
+def _nuclei_input_file(scan_dir: Path, host: str, input_file: Path) -> Path:
+    clean = _target_file(scan_dir, host, "_nuclei_input.txt")
+    return prepare_url_input_file(input_file, clean)
 
 
 def run_nuclei_on_list(
@@ -101,8 +105,9 @@ def run_nuclei_on_list(
     scan_dir = scan_output_dir(scan_id)
     out_txt = _target_file(scan_dir, host, "_nuclei.txt")
     out_json = _target_file(scan_dir, host, "_nuclei.json")
+    nuclei_input = _nuclei_input_file(scan_dir, host, input_file)
     args = [
-        "nuclei", "-l", str(input_file), "-nh", "-nc",
+        "nuclei", "-l", str(nuclei_input), "-nh", "-nc",
         "-o", str(out_txt), "-je", str(out_json),
     ]
     if templates:
@@ -111,7 +116,14 @@ def run_nuclei_on_list(
     if severities:
         args.extend(["-severity", ",".join(severities)])
     run_command(args)
-    return read_file(out_txt)
+    return normalize_tool_output(read_file(out_txt))
+
+
+def _katana_input_file(scan_dir: Path, host: str, httpx_file: Path | None) -> Path | None:
+    if httpx_file and httpx_file.is_file() and httpx_file.stat().st_size > 0:
+        clean = _target_file(scan_dir, host, "_katana_input.txt")
+        return prepare_url_input_file(httpx_file, clean)
+    return httpx_file
 
 
 def run_katana_on_target(
@@ -123,12 +135,13 @@ def run_katana_on_target(
 ) -> str:
     scan_dir = scan_output_dir(scan_id)
     out = _target_file(scan_dir, host, "_katana.txt")
-    args = ["katana", "-silent", "-depth", depth, "-o", str(out)]
-    if httpx_file and httpx_file.is_file() and httpx_file.stat().st_size > 0:
-        run_command([*args, "-list", str(httpx_file)])
+    args = ["katana", "-silent", "-nc", "-depth", depth, "-o", str(out)]
+    katana_input = _katana_input_file(scan_dir, host, httpx_file)
+    if katana_input and katana_input.is_file() and katana_input.stat().st_size > 0:
+        run_command([*args, "-list", str(katana_input)])
     else:
         run_command([*args, "-u", f"https://{host}"])
-    return read_file(out)
+    return normalize_tool_output(read_file(out))
 
 
 def run_per_subdomain_web_pipeline(

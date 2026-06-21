@@ -54,6 +54,8 @@
               <span class="badge badge-danger">Başarısız</span>
               {% elif scan.status == 'running' %}
               <span class="badge badge-info">Çalışıyor</span>
+              {% elif scan.status == 'awaiting_subdomains' %}
+              <span class="badge badge-warning">Alt Alan Seçimi</span>
               {% else %}
               <span class="badge badge-default">{{ scan.get_status_display }}</span>
               {% endif %}

@@ -3,8 +3,9 @@ from django.utils.safestring import mark_safe
 
 from scans.models import Scan, ScanModuleResult
 from scans.services.formatters import format_module_output, strip_html_output
+from scans.services.output_utils import normalize_tool_output
 from scans.services.live_log import bind_scan_log, log_activity, reset_scan_log
-from scans.services.output_paths import list_subdomains, scan_output_dir
+from scans.services.output_paths import list_subdomains, read_file, safe_name, scan_output_dir
 
 from . import tools
 from .validators import (
@@ -104,7 +105,7 @@ def _output_relpath(scan_id: int, filename: str) -> str:
 
 
 def _save_module_result(scan: Scan, module: str, output_text: str, filename: str) -> None:
-    plain = strip_html_output(output_text)
+    plain = strip_html_output(normalize_tool_output(output_text))
     ScanModuleResult.objects.update_or_create(
         scan=scan,
         module=module,
@@ -385,6 +386,72 @@ def apply_subdomain_selection(
     scan.status = Scan.Status.RUNNING
     scan.progress_message = "Seçilen alt alanlar taranıyor…"
     scan.save(update_fields=["config", "status", "progress_message"])
+
+
+def refresh_scan_outputs(
+    scan: Scan,
+    *,
+    rerun_wayback: bool = False,
+    rerun_httpx: bool = False,
+    rerun_nuclei: bool = False,
+    rerun_katana: bool = False,
+    rerun_nmap: bool = False,
+) -> None:
+    """Diskteki araç çıktılarını DB ile senkronize et; isteğe bağlı modülleri yeniden çalıştır."""
+    scan_dir = scan_output_dir(scan.pk)
+    config = dict(scan.config or {})
+    hosts = config.get("selected_subdomains") or list_subdomains(scan_dir, scan.domain)
+    web_flags = config.get("web_modules_selected") or {}
+
+    if "6" in (scan.modules or []):
+        dnsx_path = scan_dir / f"{scan.domain}_dnsx.txt"
+        if dnsx_path.is_file():
+            _save_module_result(
+                scan,
+                ScanModuleResult.Module.DNSX,
+                read_file(dnsx_path),
+                f"{scan.domain}_dnsx.txt",
+            )
+
+    if rerun_wayback or rerun_httpx or rerun_nuclei or rerun_katana:
+        outputs = tools.run_per_subdomain_web_pipeline(
+            scan.pk,
+            scan.domain,
+            config,
+            hosts=hosts,
+            run_wayback=rerun_wayback and web_flags.get("wayback", "3" in scan.modules),
+            run_httpx=rerun_httpx and web_flags.get("httpx", "4" in scan.modules),
+            run_nuclei=rerun_nuclei and web_flags.get("nuclei", "5" in scan.modules),
+            run_katana=rerun_katana and web_flags.get("katana", "7" in scan.modules),
+        )
+        _persist_web_outputs(scan, scan.modules, outputs)
+    else:
+        outputs = _collect_web_outputs_from_disk(scan, hosts)
+        _persist_web_outputs(scan, scan.modules, outputs)
+
+    if rerun_nmap and "1" in (scan.modules or []):
+        _run_naabu_nmap_phase(scan, config)
+
+
+def _collect_web_outputs_from_disk(scan: Scan, hosts: list[str]) -> dict[str, str]:
+    scan_dir = scan_output_dir(scan.pk)
+    buckets = {"wayback": [], "httpx": [], "nuclei": [], "katana": []}
+    suffix_map = {
+        "wayback": "_wayback.txt",
+        "httpx": "_httpx.txt",
+        "nuclei": "_nuclei.txt",
+        "katana": "_katana.txt",
+    }
+    for host in hosts:
+        safe = safe_name(host)
+        for key, suffix in suffix_map.items():
+            path = scan_dir / f"{safe}{suffix}"
+            if not path.is_file():
+                continue
+            text = normalize_tool_output(read_file(path))
+            if text.strip():
+                buckets[key].append(f"=== {host} ===\n{text}")
+    return {key: "\n\n".join(parts) for key, parts in buckets.items()}
 
 
 def scan_to_context(scan: Scan) -> dict:

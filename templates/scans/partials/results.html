@@ -47,8 +47,16 @@
       <div class="tab-pane{% if forloop.first %} active show{% endif %}" id="tab-{{ tab.fmt }}">
         {% if tab.is_empty %}
         <div class="alert alert-secondary mb-0">
+          {% if tab.fmt == "nuclei" %}
+          Seçilen önem derecelerinde zafiyet bulunamadı. Tarama tamamlandı; hedeflerde eşleşen şablon yok.
+          {% elif tab.fmt == "wayback" %}
+          Wayback arşivinde bu hedefler için URL bulunamadı veya waybackpy çalıştırılamadı.
+          {% elif tab.fmt == "nmap" %}
+          Nmap çıktısı yok. Sunucuda <code>nmap</code> kurulu olduğundan ve worker PATH ayarının doğru olduğundan emin olun.
+          {% else %}
           Bu modül için çıktı yok. Araç kurulumu veya hedef yanıtı kontrol edin; ayrıntılar için
           <a href="{% url 'scans:progress' scan.pk %}">canlı izleme</a> loglarına bakın.
+          {% endif %}
         </div>
         {% else %}
         <div class="result-output-rich">{{ tab.html|safe }}</div>

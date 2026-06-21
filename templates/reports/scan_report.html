@@ -9,11 +9,14 @@
       src: url("file://{{ font_path }}");
     }
     body {
-      font-family: "DejaVuSans", sans-serif;
+      font-family: DejaVuSans, sans-serif;
       margin: 1.5rem 2rem;
       color: #1a1a2e;
       font-size: 11px;
       line-height: 1.45;
+    }
+    h1, h2, p, li, td, th, pre, div, span {
+      font-family: DejaVuSans, sans-serif;
     }
     h1 { font-size: 22px; color: #111; margin-bottom: 0.25rem; }
     h2 {
@@ -85,6 +88,17 @@
       margin: 4px 0;
       font-size: 10px;
     }
+    .subdomain-list {
+      columns: 2;
+      column-gap: 24px;
+      margin: 0;
+      padding-left: 18px;
+      font-size: 10px;
+    }
+    .subdomain-list li {
+      break-inside: avoid;
+      margin-bottom: 4px;
+    }
   </style>
 </head>
 <body>
@@ -138,6 +152,17 @@
       {% if item.cve %}<br><span class="sev-high">{{ item.cve }}</span>{% endif %}
     </div>
     {% endfor %}
+  </section>
+  {% endif %}
+
+  {% if subdomain_list %}
+  <section>
+    <h2>Subdomain Listesi ({{ subdomain_list|length }})</h2>
+    <ul class="subdomain-list">
+      {% for host in subdomain_list %}
+      <li>{{ host }}</li>
+      {% endfor %}
+    </ul>
   </section>
   {% endif %}
 

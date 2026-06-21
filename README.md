@@ -15,6 +15,27 @@ Domain keşif ve güvenlik analiz platformu. **Django 5** + **[Black Dashboard](
 
 ## Kurulum
 
+### Docker (önerilen)
+
+```bash
+cp .env.example .env
+# .env içinde DJANGO_SECRET_KEY değiştirin
+
+docker compose up --build -d
+
+# İlk kullanıcı
+docker compose exec web python manage.py createsuperuser
+```
+
+- Uygulama: http://127.0.0.1:8000/
+- Veritabanı ve tarama çıktıları `warecon_data` volume içinde kalır
+- `web` (Gunicorn) + `worker` (RQ) + `redis` birlikte çalışır
+
+Durdurmak: `docker compose down`  
+Verileri de silmek: `docker compose down -v`
+
+### Manuel kurulum
+
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate

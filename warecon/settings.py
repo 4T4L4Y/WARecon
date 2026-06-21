@@ -8,6 +8,7 @@ from pathlib import Path
 from django.contrib.messages import constants as message_constants
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = Path(os.environ.get("DATA_DIR", str(BASE_DIR)))
 
 SECRET_KEY = os.environ.get(
     "DJANGO_SECRET_KEY",
@@ -62,7 +63,7 @@ WSGI_APPLICATION = "warecon.wsgi.application"
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        "NAME": DATA_DIR / "db.sqlite3",
     }
 }
 
@@ -80,6 +81,16 @@ USE_TZ = True
 
 STATIC_URL = "/static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
+STATIC_ROOT = DATA_DIR / "staticfiles"
+
+if os.environ.get("DJANGO_USE_WHITENOISE", "").lower() == "true":
+    MIDDLEWARE.insert(1, "whitenoise.middleware.WhiteNoiseMiddleware")
+    STORAGES = {
+        "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedStaticFilesStorage",
+        },
+    }
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -93,10 +104,10 @@ EMAIL_BACKEND = os.environ.get(
     "django.core.mail.backends.console.EmailBackend",
 )
 
-OUTPUTS_DIR = BASE_DIR / "outputs"
+OUTPUTS_DIR = DATA_DIR / "outputs"
 
-# CLI araçları: venv/bin (waybackpy) ve ~/go/bin (ProjectDiscovery)
 TOOL_PATH_EXTRA = [
+    "/usr/local/bin",
     str(BASE_DIR / ".venv" / "bin"),
     str(Path.home() / "go" / "bin"),
 ]

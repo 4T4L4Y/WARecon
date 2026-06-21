@@ -3,5 +3,8 @@ __pycache__/
 *.py[cod]
 db.sqlite3
 outputs/
+staticfiles/
+.env
+.docker/
 *.log
 .idea/

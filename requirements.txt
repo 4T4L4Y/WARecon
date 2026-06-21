@@ -6,3 +6,5 @@ redis>=5.0,<6
 djangorestframework>=3.15,<4
 xhtml2pdf>=0.2.16,<1
 matplotlib>=3.8,<4
+gunicorn>=23.0,<24
+whitenoise>=6.8,<7

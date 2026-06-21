@@ -26,7 +26,7 @@ class ScanSerializer(serializers.ModelSerializer):
         fields = [
             "id", "domain", "raw_input", "modules", "module_labels", "status",
             "current_module", "progress_message", "progress_percent",
-            "error_message", "created_at", "completed_at", "results",
+            "error_message", "is_archived", "created_at", "completed_at", "results",
         ]
         read_only_fields = fields
 
@@ -61,7 +61,26 @@ class ScanViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = ScanSerializer
 
     def get_queryset(self):
-        return Scan.objects.filter(user=self.request.user).prefetch_related("results")
+        return Scan.objects.filter(
+            user=self.request.user,
+            is_archived=False,
+        ).prefetch_related("results")
+
+    @action(detail=True, methods=["post"])
+    def archive(self, request, pk=None):
+        scan = self.get_object()
+        scan.is_archived = not scan.is_archived
+        scan.save(update_fields=["is_archived"])
+        return Response({"is_archived": scan.is_archived})
+
+    @action(detail=True, methods=["post"])
+    def remove(self, request, pk=None):
+        scan = self.get_object()
+        from scans.services.output_paths import cleanup_scan_outputs
+
+        cleanup_scan_outputs(scan.pk)
+        scan.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     @action(detail=False, methods=["post"], serializer_class=ScanCreateSerializer)
     def start(self, request):

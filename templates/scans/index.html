@@ -117,8 +117,13 @@
 
           <div id="nucleiOptions" class="options-panel p-3 mb-3 d-none">
             <h6 class="text-primary mb-3">Nuclei Ayarları</h6>
-            <label for="nucleiTemplates">Şablon ID'leri</label>
-            <input type="text" class="form-control form-control-sm mb-3" name="nucleiTemplates" id="nucleiTemplates" placeholder="caa-fingerprint">
+            <label for="nucleiTemplateSearch">Şablon ara ve seç</label>
+            <input type="text" class="form-control form-control-sm mb-2" id="nucleiTemplateSearch"
+                   placeholder="Şablon adı yazın…" autocomplete="off">
+            <div id="nucleiTemplatePicker" class="nuclei-template-picker mb-3">
+              <p class="text-muted small mb-0">Nuclei modülü seçildiğinde şablonlar yüklenecek.</p>
+            </div>
+            <input type="hidden" name="nucleiTemplates" id="nucleiTemplates" value="">
             <label>Önem derecesi</label>
             <div class="severity-pills">
               <div class="custom-control custom-checkbox">

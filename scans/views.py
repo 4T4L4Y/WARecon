@@ -5,6 +5,7 @@ from functools import wraps
 
 from django.conf import settings
 from django.contrib.auth.views import redirect_to_login
+from django.contrib import messages
 from django.contrib.auth import authenticate
 from django.core.exceptions import ValidationError
 from django.http import FileResponse, Http404, HttpResponse, JsonResponse, StreamingHttpResponse
@@ -12,10 +13,22 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_GET, require_http_methods
 
 from .forms import ScanForm
-from .models import Scan
-from .services.pipeline import create_scan, scan_to_context
+from .services.scan_control import request_cancel, request_skip_module, skip_available
+from .services.subdomain_detail import host_results_context, subdomain_breakdown
+from .services.notifications import get_or_create_profile
+from .tasks import cancel_rq_job
+from .models import Scan, ScanLog, ScanNotification, UserProfile
+from .services.live_log import module_status_for_scan
+from .services.output_paths import cleanup_scan_outputs, scan_output_dir
+from .services.pipeline import (
+    apply_port_selection,
+    apply_subdomain_selection,
+    create_scan,
+    scan_to_context,
+)
 from .services.reports import render_html_report, render_pdf_report
-from .tasks import enqueue_scan
+from scans.services import tools
+from .tasks import enqueue_continue_scan, enqueue_scan
 
 
 def _resolve_user(request):
@@ -59,6 +72,7 @@ def index(request):
         "nuclei_output": "",
         "dnsx_output": "",
         "katana_output": "",
+        "nmap_output": "",
     }
 
     if request.method == "POST":
@@ -68,7 +82,9 @@ def index(request):
             return render(request, "scans/index.html", context)
 
         try:
-            scan = create_scan(request.user, form.cleaned_data)
+            cleaned = form.cleaned_data
+            cleaned["nucleiTemplateIds"] = request.POST.getlist("nucleiTemplateIds")
+            scan = create_scan(request.user, cleaned)
             enqueue_scan(scan.pk)
             return redirect("scans:progress", pk=scan.pk)
         except ValidationError as exc:
@@ -86,7 +102,22 @@ def index(request):
 @require_GET
 def progress(request, pk: int):
     scan = get_object_or_404(_user_scans(request.user), pk=pk)
-    return render(request, "scans/progress.html", {"scan": scan})
+    initial_logs = list(ScanLog.objects.filter(scan=scan).order_by("id")[:200])
+    initial_logs_data = [
+        {
+            "id": entry.id,
+            "level": entry.level,
+            "message": entry.message,
+            "module": entry.module,
+            "time": entry.created_at.strftime("%H:%M:%S"),
+        }
+        for entry in initial_logs
+    ]
+    return render(request, "scans/progress.html", {
+        "scan": scan,
+        "initial_logs_data": initial_logs_data,
+        "module_status": module_status_for_scan(scan),
+    })
 
 
 @login_required_basic
@@ -96,24 +127,54 @@ def scan_events(request, pk: int):
 
     def event_stream():
         last_percent = -1
+        last_log_id = 0
+        last_status = ""
+        last_module = ""
         while True:
             scan.refresh_from_db()
+            new_logs = list(
+                ScanLog.objects.filter(scan=scan, id__gt=last_log_id).order_by("id")[:100]
+            )
+            if new_logs:
+                last_log_id = new_logs[-1].id
+
             payload = {
                 "status": scan.status,
                 "message": scan.progress_message,
                 "percent": scan.progress_percent,
                 "module": scan.current_module,
                 "error": scan.error_message,
+                "modules": module_status_for_scan(scan),
+                "skip_available": skip_available(scan),
+                "logs": [
+                    {
+                        "id": entry.id,
+                        "level": entry.level,
+                        "message": entry.message,
+                        "module": entry.module,
+                        "time": entry.created_at.strftime("%H:%M:%S"),
+                    }
+                    for entry in new_logs
+                ],
             }
-            if scan.progress_percent != last_percent or scan.status in (
-                Scan.Status.COMPLETED,
-                Scan.Status.FAILED,
-            ):
+            changed = (
+                scan.progress_percent != last_percent
+                or scan.status != last_status
+                or scan.current_module != last_module
+                or bool(new_logs)
+            )
+            if changed:
                 yield f"data: {json.dumps(payload)}\n\n"
                 last_percent = scan.progress_percent
-            if scan.status in (Scan.Status.COMPLETED, Scan.Status.FAILED):
+                last_status = scan.status
+                last_module = scan.current_module
+            if scan.status in (
+                Scan.Status.COMPLETED,
+                Scan.Status.FAILED,
+                Scan.Status.CANCELLED,
+            ):
                 break
-            time.sleep(1)
+            time.sleep(0.5)
 
     response = StreamingHttpResponse(event_stream(), content_type="text/event-stream")
     response["Cache-Control"] = "no-cache"
@@ -121,18 +182,305 @@ def scan_events(request, pk: int):
 
 
 @login_required_basic
+@require_http_methods(["GET", "POST"])
+def select_subdomains(request, pk: int):
+    scan = get_object_or_404(_user_scans(request.user), pk=pk)
+    if scan.status != Scan.Status.AWAITING_SUBDOMAIN_SELECTION:
+        return redirect("scans:progress", pk=pk)
+
+    config = scan.config or {}
+    hosts = config.get("discovered_subdomains") or []
+    modules = set(scan.modules or [])
+    web_flags = {
+        "wayback": "3" in modules,
+        "httpx": "4" in modules,
+        "nuclei": "5" in modules,
+        "katana": "7" in modules,
+    }
+
+    if request.method == "POST":
+        selected = request.POST.getlist("subdomains")
+        if not selected:
+            messages.error(request, "En az bir alt alan seçmelisiniz.")
+        else:
+            run_wayback = web_flags["wayback"] and "run_wayback" in request.POST
+            run_httpx = web_flags["httpx"] and "run_httpx" in request.POST
+            run_nuclei = web_flags["nuclei"] and "run_nuclei" in request.POST
+            run_katana = web_flags["katana"] and "run_katana" in request.POST
+            if not any((run_wayback, run_httpx, run_nuclei, run_katana)):
+                messages.error(request, "En az bir web modülü seçmelisiniz.")
+            else:
+                apply_subdomain_selection(
+                    scan,
+                    selected,
+                    run_wayback=run_wayback,
+                    run_httpx=run_httpx,
+                    run_nuclei=run_nuclei,
+                    run_katana=run_katana,
+                )
+                enqueue_continue_scan(scan.pk)
+                messages.success(
+                    request,
+                    f"{len(selected)} alt alan için tarama devam ediyor.",
+                )
+                return redirect("scans:progress", pk=pk)
+
+    return render(request, "scans/select_subdomains.html", {
+        "scan": scan,
+        "hosts": hosts,
+        "web_flags": web_flags,
+    })
+
+
+def _subdomain_web_flags(scan: Scan) -> dict:
+    modules = set(scan.modules or [])
+    return {
+        "wayback": "3" in modules,
+        "httpx": "4" in modules,
+        "nuclei": "5" in modules,
+        "katana": "7" in modules,
+    }
+
+
+@login_required_basic
+@require_http_methods(["GET", "POST"])
+def subdomain_selection_api(request, pk: int):
+    scan = get_object_or_404(_user_scans(request.user), pk=pk)
+    if scan.status != Scan.Status.AWAITING_SUBDOMAIN_SELECTION:
+        return JsonResponse({"ok": False, "error": "Alt alan seçimi beklenmiyor."}, status=400)
+
+    config = scan.config or {}
+    hosts = config.get("discovered_subdomains") or []
+    web_flags = _subdomain_web_flags(scan)
+
+    if request.method == "GET":
+        return JsonResponse({"ok": True, "hosts": hosts, "web_flags": web_flags})
+
+    selected = request.POST.getlist("subdomains")
+    if not selected:
+        return JsonResponse({"ok": False, "error": "En az bir alt alan seçmelisiniz."}, status=400)
+
+    run_wayback = web_flags["wayback"] and "run_wayback" in request.POST
+    run_httpx = web_flags["httpx"] and "run_httpx" in request.POST
+    run_nuclei = web_flags["nuclei"] and "run_nuclei" in request.POST
+    run_katana = web_flags["katana"] and "run_katana" in request.POST
+    if not any((run_wayback, run_httpx, run_nuclei, run_katana)):
+        return JsonResponse({"ok": False, "error": "En az bir web modülü seçmelisiniz."}, status=400)
+
+    apply_subdomain_selection(
+        scan,
+        selected,
+        run_wayback=run_wayback,
+        run_httpx=run_httpx,
+        run_nuclei=run_nuclei,
+        run_katana=run_katana,
+    )
+    enqueue_continue_scan(scan.pk)
+    return JsonResponse({"ok": True, "count": len(selected)})
+
+
+@login_required_basic
+@require_http_methods(["GET", "POST"])
+def port_selection_api(request, pk: int):
+    scan = get_object_or_404(_user_scans(request.user), pk=pk)
+    if scan.status != Scan.Status.AWAITING_PORT_SELECTION:
+        return JsonResponse({"ok": False, "error": "Port seçimi beklenmiyor."}, status=400)
+
+    config = scan.config or {}
+    ports = config.get("discovered_ports") or []
+
+    if request.method == "GET":
+        return JsonResponse({"ok": True, "ports": ports})
+
+    selected = request.POST.getlist("ports")
+    run_nmap = "run_nmap" in request.POST
+    if run_nmap and not selected:
+        return JsonResponse({"ok": False, "error": "Nmap için en az bir port seçin."}, status=400)
+
+    apply_port_selection(scan, selected, run_nmap=run_nmap)
+    enqueue_continue_scan(scan.pk)
+    return JsonResponse({"ok": True, "count": len(selected), "run_nmap": run_nmap})
+
+
+@login_required_basic
 @require_GET
 def history(request):
-    scans = _user_scans(request.user)[:50]
-    return render(request, "scans/history.html", {"scans": scans})
+    show_archived = request.GET.get("archived") == "1"
+    scans = _user_scans(request.user).filter(is_archived=show_archived)[:50]
+    return render(request, "scans/history.html", {
+        "scans": scans,
+        "show_archived": show_archived,
+    })
+
+
+@login_required_basic
+@require_http_methods(["POST"])
+def scan_archive(request, pk: int):
+    scan = get_object_or_404(_user_scans(request.user), pk=pk)
+    scan.is_archived = not scan.is_archived
+    scan.save(update_fields=["is_archived"])
+    label = "arşivlendi" if scan.is_archived else "arşivden çıkarıldı"
+    messages.success(request, f"Tarama {label}.")
+    return redirect(request.POST.get("next") or "scans:history")
+
+
+@login_required_basic
+@require_http_methods(["POST"])
+def scan_delete(request, pk: int):
+    scan = get_object_or_404(_user_scans(request.user), pk=pk)
+    cleanup_scan_outputs(scan.pk)
+    scan.delete()
+    messages.success(request, "Tarama silindi.")
+    return redirect("scans:history")
+
+
+@login_required_basic
+@require_http_methods(["POST"])
+def run_exploit_check(request, pk: int):
+    scan = get_object_or_404(_user_scans(request.user).prefetch_related("results"), pk=pk)
+    suggestions = (scan.config or {}).get("nmap_exploit_suggestions", [])
+    if not suggestions:
+        messages.warning(request, "Doğrulanacak exploit önerisi bulunamadı.")
+        return redirect("scans:detail", pk=pk)
+
+    hosts = list({item.get("host", scan.domain) for item in suggestions})
+    log_token = None
+    try:
+        from scans.services.live_log import bind_scan_log, reset_scan_log
+
+        log_token = bind_scan_log(scan.pk, "5")
+        output = tools.run_nuclei_exploit_verification(scan.pk, scan.domain, hosts)
+    finally:
+        if log_token is not None:
+            reset_scan_log(log_token)
+
+    from scans.models import ScanModuleResult
+
+    nuclei_result = scan.results.filter(module=ScanModuleResult.Module.NUCLEI).first()
+    merged = (nuclei_result.output + "\n\n=== Exploit Doğrulama ===\n" + output) if nuclei_result else output
+    if nuclei_result:
+        nuclei_result.output = merged
+        nuclei_result.save(update_fields=["output"])
+    else:
+        ScanModuleResult.objects.create(
+            scan=scan,
+            module=ScanModuleResult.Module.NUCLEI,
+            output=merged,
+            output_file=f"scan_{scan.pk}/{scan.domain}_nuclei_exploit.txt",
+        )
+    messages.success(request, "Exploit doğrulama taraması tamamlandı.")
+    return redirect("scans:detail", pk=pk)
 
 
 @login_required_basic
 @require_GET
 def scan_detail(request, pk: int):
-    scan = get_object_or_404(_user_scans(request.user).prefetch_related("results"), pk=pk)
+    scan = get_object_or_404(
+        _user_scans(request.user).select_related("user__profile").prefetch_related("results"),
+        pk=pk,
+    )
+    host = request.GET.get("host", "").strip()
+    subs = subdomain_breakdown(scan)
+    if not host:
+        selected = [s["host"] for s in subs if s["scanned"]]
+        host = selected[0] if selected else scan.domain
     context = scan_to_context(scan)
-    return render(request, "scans/index.html", context)
+    context.update({
+        "scan": scan,
+        "subdomain_breakdown": subs,
+        "active_host": host,
+        "host_results": host_results_context(scan, host),
+    })
+    return render(request, "scans/scan_detail.html", context)
+
+
+@login_required_basic
+@require_http_methods(["POST"])
+def scan_cancel(request, pk: int):
+    scan = get_object_or_404(_user_scans(request.user), pk=pk)
+    if scan.status in (Scan.Status.COMPLETED, Scan.Status.FAILED, Scan.Status.CANCELLED):
+        return redirect("scans:progress", pk=pk)
+    cancel_rq_job(scan)
+    request_cancel(scan)
+    from scans.services.notifications import notify_scan_finished
+
+    notify_scan_finished(scan)
+    messages.warning(request, "Tarama durduruldu.")
+    return redirect(request.POST.get("next") or "scans:progress", pk=scan.pk)
+
+
+@login_required_basic
+@require_http_methods(["POST"])
+def scan_skip_module(request, pk: int):
+    scan = get_object_or_404(_user_scans(request.user), pk=pk)
+    module = scan.current_module or request.POST.get("module", "")
+    if module:
+        from scans.services.pipeline import MODULE_LABELS
+
+        request_skip_module(scan, module)
+        label = MODULE_LABELS.get(module, module)
+        messages.info(request, f"{label} atlanıyor…")
+    return redirect("scans:progress", pk=pk)
+
+
+@login_required_basic
+@require_GET
+def nuclei_templates_api(request):
+    from scans.services.nuclei_templates import search_nuclei_templates
+
+    q = request.GET.get("q", "")
+    items = search_nuclei_templates(q, limit=300)
+    return JsonResponse({"templates": items})
+
+
+@login_required_basic
+@require_GET
+def notifications_api(request):
+    unread = ScanNotification.objects.filter(user=request.user, is_read=False)
+    items = ScanNotification.objects.filter(user=request.user).order_by("-created_at")[:20]
+    return JsonResponse({
+        "count": unread.count(),
+        "items": [
+            {
+                "id": n.id,
+                "title": n.title,
+                "message": n.message,
+                "level": n.level,
+                "scan_id": n.scan_id,
+                "time": n.created_at.strftime("%d.%m %H:%M"),
+                "is_read": n.is_read,
+            }
+            for n in items
+        ],
+    })
+
+
+@login_required_basic
+@require_http_methods(["POST"])
+def notifications_mark_read(request):
+    ScanNotification.objects.filter(user=request.user, is_read=False).update(is_read=True)
+    return JsonResponse({"ok": True})
+
+
+@login_required_basic
+@require_http_methods(["GET", "POST"])
+def notification_settings(request):
+    profile = get_or_create_profile(request.user)
+    if request.method == "POST":
+        profile.notify_in_app = "notify_in_app" in request.POST
+        profile.notify_email = "notify_email" in request.POST
+        profile.notify_email_critical_high = "notify_email_critical_high" in request.POST
+        profile.phone_critical_high = "phone_critical_high" in request.POST
+        profile.notify_phone = request.POST.get("notify_phone", "").strip()
+        try:
+            skip_secs = int(request.POST.get("skip_module_after_seconds", "120"))
+        except (TypeError, ValueError):
+            skip_secs = 120
+        profile.skip_module_after_seconds = max(30, min(3600, skip_secs))
+        profile.save()
+        messages.success(request, "Bildirim tercihleri kaydedildi.")
+        return redirect("scans:notification_settings")
+    return render(request, "scans/notification_settings.html", {"profile": profile})
 
 
 @login_required_basic
@@ -154,23 +502,23 @@ def report_pdf(request, pk: int):
 
 @login_required_basic
 @require_GET
-def download_output(request, filename: str):
-    if ".." in filename or "/" in filename:
+def download_output(request, pk: int, filename: str):
+    scan = get_object_or_404(_user_scans(request.user), pk=pk)
+    if ".." in filename:
         raise Http404
-    path = settings.OUTPUTS_DIR / filename
+    path = scan_output_dir(pk) / filename
+    if not path.is_file():
+        path = settings.OUTPUTS_DIR / f"scan_{pk}" / filename
     if not path.is_file():
         raise Http404
-    domain = filename.split("_")[0]
-    if not _user_scans(request.user).filter(domain=domain).exists():
-        raise Http404
-    return FileResponse(path.open("rb"), as_attachment=True, filename=filename)
+    return FileResponse(path.open("rb"), as_attachment=True, filename=path.name)
 
 
+@login_required_basic
 @require_GET
-def nuclei_json(request, filename: str):
-    if not filename.endswith("_nuclei.json") or ".." in filename:
-        raise Http404
-    path = settings.OUTPUTS_DIR / filename
-    if not path.is_file():
-        return JsonResponse({"error": "File not found"}, status=404)
-    return JsonResponse(json.loads(path.read_text(encoding="utf-8")), safe=False)
+def nuclei_json_for_scan(request, pk: int):
+    scan = get_object_or_404(_user_scans(request.user), pk=pk)
+    from scans.services.reports import _collect_nuclei_json
+
+    data = _collect_nuclei_json(scan)
+    return JsonResponse(data, safe=False)

@@ -4,42 +4,181 @@
   <meta charset="UTF-8">
   <title>WARecon Rapor — {{ scan.domain }}</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 2rem; color: #222; }
-    h1, h2 { color: #111; }
-    .meta { color: #666; margin-bottom: 2rem; }
-    pre { background: #f4f4f4; padding: 1rem; border-radius: 6px; font-size: 12px; white-space: pre-wrap; }
-    section { margin-bottom: 2rem; page-break-inside: avoid; }
+    @font-face {
+      font-family: "DejaVuSans";
+      src: url("file://{{ font_path }}");
+    }
+    body {
+      font-family: DejaVuSans, sans-serif;
+      margin: 1.5rem 2rem;
+      color: #1a1a2e;
+      font-size: 11px;
+      line-height: 1.45;
+    }
+    h1, h2, p, li, td, th, pre, div, span {
+      font-family: DejaVuSans, sans-serif;
+    }
+    h1 { font-size: 22px; color: #111; margin-bottom: 0.25rem; }
+    h2 {
+      font-size: 14px;
+      color: #1d8cf8;
+      border-bottom: 2px solid #e8e8e8;
+      padding-bottom: 4px;
+      margin-top: 1.5rem;
+    }
+    .cover {
+      background: #1e1e2f;
+      color: #fff;
+      padding: 1.5rem;
+      border-radius: 8px;
+      margin-bottom: 1.5rem;
+    }
+    .cover h1 { color: #fff; }
+    .meta-grid {
+      display: table;
+      width: 100%;
+      margin-top: 1rem;
+    }
+    .meta-row { display: table-row; }
+    .meta-label, .meta-value {
+      display: table-cell;
+      padding: 4px 8px 4px 0;
+      vertical-align: top;
+    }
+    .meta-label { color: #aaa; width: 120px; }
+    .summary-box {
+      background: #f7f8fc;
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      padding: 12px;
+      margin: 1rem 0;
+    }
+    .stat-table { width: 100%; border-collapse: collapse; margin: 8px 0; }
+    .stat-table th, .stat-table td {
+      border: 1px solid #ddd;
+      padding: 6px 10px;
+      text-align: left;
+    }
+    .stat-table th { background: #f0f0f0; }
+    .sev-critical { color: #c0392b; font-weight: bold; }
+    .sev-high { color: #e67e22; }
+    .sev-medium { color: #f39c12; }
+    .sev-low { color: #27ae60; }
+    .sev-info { color: #2980b9; }
+    pre {
+      background: #f4f4f8;
+      padding: 10px;
+      border-radius: 4px;
+      font-size: 9px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      page-break-inside: auto;
+    }
+    .empty-note {
+      color: #888;
+      font-style: italic;
+      padding: 8px 0;
+    }
+    section { page-break-inside: avoid; margin-bottom: 1rem; }
+    .chart-img { max-width: 100%; height: auto; margin: 10px 0; }
+    .exploit-item {
+      background: #fff5f5;
+      border-left: 3px solid #e74c3c;
+      padding: 6px 10px;
+      margin: 4px 0;
+      font-size: 10px;
+    }
+    .subdomain-list {
+      columns: 2;
+      column-gap: 24px;
+      margin: 0;
+      padding-left: 18px;
+      font-size: 10px;
+    }
+    .subdomain-list li {
+      break-inside: avoid;
+      margin-bottom: 4px;
+    }
   </style>
 </head>
 <body>
-  <h1>WARecon Tarama Raporu</h1>
-  <div class="meta">
-    <p><strong>Domain:</strong> {{ scan.domain }}</p>
-    <p><strong>Tarih:</strong> {{ scan.created_at|date:"d.m.Y H:i" }}</p>
-    <p><strong>Durum:</strong> {{ scan.get_status_display }}</p>
-    <p><strong>Modüller:</strong> {{ scan.module_labels|join:", " }}</p>
+  <div class="cover">
+    <h1>WARecon Güvenlik Tarama Raporu</h1>
+    <p style="color:#ccc; margin:0;">Domain keşif ve zafiyet analizi özeti</p>
+    <div class="meta-grid">
+      <div class="meta-row">
+        <div class="meta-label">Hedef</div>
+        <div class="meta-value"><strong>{{ scan.domain }}</strong></div>
+      </div>
+      <div class="meta-row">
+        <div class="meta-label">Tarih</div>
+        <div class="meta-value">{{ scan.created_at|date:"d F Y, H:i" }}</div>
+      </div>
+      <div class="meta-row">
+        <div class="meta-label">Durum</div>
+        <div class="meta-value">{{ scan.get_status_display }}</div>
+      </div>
+      <div class="meta-row">
+        <div class="meta-label">Modüller</div>
+        <div class="meta-value">{{ scan.module_labels|join:", " }}</div>
+      </div>
+    </div>
   </div>
 
-  {% if subdomain_output %}
-  <section><h2>Subdomain Keşfi</h2><pre>{{ subdomain_output }}</pre></section>
+  <div class="summary-box">
+    <h2 style="margin-top:0; border:none;">Yönetici Özeti</h2>
+    <table class="stat-table">
+      <tr><th>Metrik</th><th>Değer</th></tr>
+      <tr><td>Toplam Nuclei bulgusu</td><td>{{ nuclei_total }}</td></tr>
+      <tr><td class="sev-critical">Critical</td><td>{{ nuclei_counts.critical }}</td></tr>
+      <tr><td class="sev-high">High</td><td>{{ nuclei_counts.high }}</td></tr>
+      <tr><td class="sev-medium">Medium</td><td>{{ nuclei_counts.medium }}</td></tr>
+      <tr><td class="sev-low">Low</td><td>{{ nuclei_counts.low }}</td></tr>
+      <tr><td class="sev-info">Info</td><td>{{ nuclei_counts.info }}</td></tr>
+      <tr><td>Nmap exploit önerisi</td><td>{{ exploit_suggestions|length }}</td></tr>
+    </table>
+    {% if severity_chart_b64 %}
+    <img class="chart-img" src="data:image/png;base64,{{ severity_chart_b64 }}" alt="Nuclei dağılım grafiği">
+    {% endif %}
+  </div>
+
+  {% if exploit_suggestions %}
+  <section>
+    <h2>Nmap Exploit / Zafiyet Önerileri</h2>
+    {% for item in exploit_suggestions %}
+    <div class="exploit-item">
+      {% if item.host %}<strong>{{ item.host }}</strong> — {% endif %}
+      {{ item.summary }}
+      {% if item.cve %}<br><span class="sev-high">{{ item.cve }}</span>{% endif %}
+    </div>
+    {% endfor %}
+  </section>
   {% endif %}
-  {% if dnsx_output %}
-  <section><h2>DNS Kayıtları</h2><pre>{{ dnsx_output }}</pre></section>
+
+  {% if subdomain_list %}
+  <section>
+    <h2>Subdomain Listesi ({{ subdomain_list|length }})</h2>
+    <ul class="subdomain-list">
+      {% for host in subdomain_list %}
+      <li>{{ host }}</li>
+      {% endfor %}
+    </ul>
+  </section>
   {% endif %}
-  {% if wayback_output %}
-  <section><h2>Wayback URL</h2><pre>{{ wayback_output }}</pre></section>
-  {% endif %}
-  {% if httpx_output %}
-  <section><h2>HTTPX</h2><pre>{{ httpx_output }}</pre></section>
-  {% endif %}
-  {% if katana_output %}
-  <section><h2>Katana Crawl</h2><pre>{{ katana_output }}</pre></section>
-  {% endif %}
-  {% if naabu_output %}
-  <section><h2>Port Tarama</h2><pre>{{ naabu_output }}</pre></section>
-  {% endif %}
-  {% if nuclei_output %}
-  <section><h2>Nuclei Zafiyet</h2><pre>{{ nuclei_output }}</pre></section>
-  {% endif %}
+
+  {% for section in report_sections %}
+  <section>
+    <h2>{{ section.title }}</h2>
+    {% if section.is_empty %}
+    <p class="empty-note">Bu modül için çıktı yok.</p>
+    {% else %}
+    <pre>{{ section.body }}</pre>
+    {% endif %}
+  </section>
+  {% endfor %}
+
+  <p style="color:#888; font-size:9px; margin-top:2rem; text-align:center;">
+    WARecon — Bu rapor yalnızca yetkili güvenlik testleri için üretilmiştir.
+  </p>
 </body>
 </html>

@@ -9,33 +9,189 @@
   </div>
   <div class="col-sm-6 text-sm-right">
     <span class="badge badge-info" id="statusBadge">{{ scan.get_status_display }}</span>
+    <div id="progressNavActions" class="mt-2{% if scan.status != 'completed' and scan.status != 'awaiting_subdomains' and scan.status != 'awaiting_ports' %} d-none{% endif %}">
+      <button type="button" id="goSelectSubdomains"
+         class="btn btn-sm btn-warning mb-1{% if scan.status != 'awaiting_subdomains' %} d-none{% endif %}">
+        Alt Alan Seç
+      </button>
+      <button type="button" id="goSelectPorts"
+         class="btn btn-sm btn-warning mb-1{% if scan.status != 'awaiting_ports' %} d-none{% endif %}">
+        Port Seç (Nmap)
+      </button>
+      <a href="{% url 'scans:detail' scan.pk %}" id="goResults"
+         class="btn btn-sm btn-success mb-1{% if scan.status != 'completed' %} d-none{% endif %}">
+        Sonuçlara Git
+      </a>
+    </div>
   </div>
 </div>
 {% endblock %}
 
 {% block content %}
-<div class="card">
-  <div class="card-body">
-    <div class="d-flex justify-content-between mb-2">
-      <span id="progressMessage">{{ scan.progress_message|default:"Başlatılıyor…" }}</span>
-      <span id="progressPercent">{{ scan.progress_percent }}%</span>
+<div class="row">
+  <div class="col-lg-4 mb-4">
+    <div class="card">
+      <div class="card-header">
+        <h4 class="card-title mb-0">Modül Durumu</h4>
+      </div>
+      <div class="card-body p-0">
+        <ul class="list-group list-group-flush" id="moduleSteps">
+          {% for item in module_status %}
+          <li class="list-group-item module-step module-step-{{ item.state }}" data-module-id="{{ item.id }}">
+            <span class="module-step-icon"><i class="tim-icons {% if item.state == 'done' %}icon-check-2{% elif item.state == 'running' %}icon-refresh-01{% elif item.state == 'failed' %}icon-simple-remove{% else %}icon-minimal-down{% endif %}"></i></span>
+            <span class="module-step-label">{{ item.label }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
     </div>
-    <div class="progress mb-4">
-      <div class="progress-bar bg-primary" id="progressBar" style="width: {{ scan.progress_percent }}%"></div>
+  </div>
+
+  <div class="col-lg-8 mb-4">
+    <div class="card">
+      <div class="card-body pb-2">
+        <div class="d-flex justify-content-between mb-2">
+          <span id="progressMessage">{{ scan.progress_message|default:"Başlatılıyor…" }}</span>
+          <span id="progressPercent">{{ scan.progress_percent }}%</span>
+        </div>
+        <div class="progress mb-3">
+          <div class="progress-bar bg-primary" id="progressBar" style="width: {{ scan.progress_percent }}%"></div>
+        </div>
+        <div class="d-flex flex-wrap mb-2" id="scanControlActions">
+          {% if scan.status == 'running' or scan.status == 'pending' %}
+          <form method="post" action="{% url 'scans:cancel' scan.pk %}" class="mr-2 mb-1"
+                onsubmit="return confirm('Tarama durdurulsun mu?');">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{% url 'scans:history' %}">
+            <button type="submit" class="btn btn-sm btn-danger">
+              <i class="tim-icons icon-simple-remove mr-1"></i>Durdur
+            </button>
+          </form>
+          {% endif %}
+          <form method="post" action="{% url 'scans:skip_module' scan.pk %}" class="mb-1 d-none" id="skipModuleForm">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-sm btn-warning">
+              <i class="tim-icons icon-minimal-right mr-1"></i>Modülü Atla (mevcut veriyle devam)
+            </button>
+          </form>
+        </div>
+        <p class="text-muted small mb-0" id="moduleInfo">
+          {% if scan.current_module %}Aktif modül: {{ scan.current_module }}{% endif %}
+        </p>
+      </div>
     </div>
-    <p class="text-muted small mb-0" id="moduleInfo">
-      {% if scan.current_module %}Modül: {{ scan.current_module }}{% endif %}
-    </p>
+
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <h4 class="card-title mb-0"><i class="tim-icons icon-laptop mr-2"></i>Canlı Aktivite</h4>
+        <span class="badge badge-default" id="logCount">0 satır</span>
+      </div>
+      <div class="card-body p-0">
+        <pre class="live-log" id="liveLog" aria-live="polite"></pre>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# Alt alan seçim modalı #}
+<div class="modal fade" id="subdomainSelectModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+    <div class="modal-content bg-dark">
+      <div class="modal-header border-bottom border-secondary">
+        <h5 class="modal-title">Alt Alan Seçimi</h5>
+        <span class="badge badge-warning">Onay gerekli</span>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small">Wayback, HTTPX, Nuclei ve Katana için taranacak alt alanları seçin.</p>
+        <div class="d-flex flex-wrap align-items-center mb-3 gap-2">
+          <input type="search" class="form-control form-control-sm flex-grow-1" id="subdomainFilter"
+                 placeholder="Alt alan filtrele…" autocomplete="off">
+          <button type="button" class="btn btn-sm btn-outline-primary" id="subdomainSelectAll">Tümünü seç</button>
+          <button type="button" class="btn btn-sm btn-outline-default" id="subdomainClearAll">Temizle</button>
+        </div>
+        <div class="selection-list-panel" id="subdomainSelectList"></div>
+        <div id="webModuleToggles" class="mt-4">
+          <h6 class="text-primary mb-2">Web modülleri</h6>
+          <div class="row">
+            <div class="col-6 col-md-3 mb-2">
+              <div class="custom-control custom-checkbox">
+                <input class="custom-control-input" type="checkbox" name="run_wayback" id="run_wayback" checked>
+                <label class="custom-control-label" for="run_wayback">Wayback</label>
+              </div>
+            </div>
+            <div class="col-6 col-md-3 mb-2">
+              <div class="custom-control custom-checkbox">
+                <input class="custom-control-input" type="checkbox" name="run_httpx" id="run_httpx" checked>
+                <label class="custom-control-label" for="run_httpx">HTTPX</label>
+              </div>
+            </div>
+            <div class="col-6 col-md-3 mb-2">
+              <div class="custom-control custom-checkbox">
+                <input class="custom-control-input" type="checkbox" name="run_nuclei" id="run_nuclei" checked>
+                <label class="custom-control-label" for="run_nuclei">Nuclei</label>
+              </div>
+            </div>
+            <div class="col-6 col-md-3 mb-2">
+              <div class="custom-control custom-checkbox">
+                <input class="custom-control-input" type="checkbox" name="run_katana" id="run_katana" checked>
+                <label class="custom-control-label" for="run_katana">Katana</label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer border-top border-secondary">
+        <button type="button" class="btn btn-primary" id="subdomainSelectSubmit">
+          <i class="tim-icons icon-triangle-right-17 mr-1"></i>Seçilenlerle devam et
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{# Port seçim modalı (Nmap) #}
+<div class="modal fade" id="portSelectModal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+    <div class="modal-content bg-dark">
+      <div class="modal-header border-bottom border-secondary">
+        <h5 class="modal-title">Nmap Port Seçimi</h5>
+        <span class="badge badge-warning">Onay gerekli</span>
+      </div>
+      <div class="modal-body">
+        <p class="text-muted small">Naabu ile bulunan açık portlardan Nmap ile taranacakları seçin.</p>
+        <div class="custom-control custom-checkbox mb-3">
+          <input class="custom-control-input" type="checkbox" id="runNmapToggle" checked>
+          <label class="custom-control-label" for="runNmapToggle">Seçilen portlarda Nmap servis taraması yap</label>
+        </div>
+        <div class="d-flex flex-wrap align-items-center mb-3 gap-2">
+          <input type="search" class="form-control form-control-sm flex-grow-1" id="portFilter"
+                 placeholder="Host veya port filtrele…" autocomplete="off">
+          <button type="button" class="btn btn-sm btn-outline-primary" id="portSelectAll">Tümünü seç</button>
+          <button type="button" class="btn btn-sm btn-outline-default" id="portClearAll">Temizle</button>
+        </div>
+        <div class="selection-list-panel" id="portSelectList"></div>
+      </div>
+      <div class="modal-footer border-top border-secondary">
+        <button type="button" class="btn btn-primary" id="portSelectSubmit">
+          <i class="tim-icons icon-triangle-right-17 mr-1"></i>Devam et
+        </button>
+      </div>
+    </div>
   </div>
 </div>
 {% endblock %}
 
 {% block scripts_extra %}
 {% load static %}
+{{ initial_logs_data|json_script:"initial-logs-data" }}
 <script>
   window.SCAN_ID = {{ scan.pk }};
   window.SCAN_EVENTS_URL = "{% url 'scans:events' scan.pk %}";
   window.SCAN_DETAIL_URL = "{% url 'scans:detail' scan.pk %}";
+  window.SCAN_SUBDOMAIN_API = "{% url 'scans:subdomain_selection_api' scan.pk %}";
+  window.SCAN_PORT_API = "{% url 'scans:port_selection_api' scan.pk %}";
 </script>
+<span id="initial-scan-status" data-status="{{ scan.status }}" class="d-none"></span>
+<script src="{% static 'js/selection-modal.js' %}"></script>
 <script src="{% static 'js/progress.js' %}"></script>
 {% endblock %}

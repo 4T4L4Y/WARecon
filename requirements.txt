@@ -1,6 +1,8 @@
 Django>=5.2,<6
 waybackpy==3.0.6
+uro>=1.0.2,<2
 django-rq>=2.10,<3
 redis>=5.0,<6
 djangorestframework>=3.15,<4
 xhtml2pdf>=0.2.16,<1
+matplotlib>=3.8,<4

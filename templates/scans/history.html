@@ -6,7 +6,7 @@
 <div class="row mb-4 align-items-center">
   <div class="col-sm-6">
     <p class="text-muted mb-1">Tarama Kayıtları</p>
-    <h2 class="mb-0">Geçmiş</h2>
+    <h2 class="mb-0">{% if show_archived %}Arşiv{% else %}Geçmiş{% endif %}</h2>
   </div>
   <div class="col-sm-6 text-sm-right">
     <a href="{% url 'scans:index' %}" class="btn btn-primary">
@@ -17,9 +17,13 @@
 {% endblock %}
 
 {% block content %}
+<div class="mb-3">
+  <a href="{% url 'scans:history' %}" class="btn btn-sm {% if not show_archived %}btn-primary{% else %}btn-outline-primary{% endif %}">Aktif</a>
+  <a href="{% url 'scans:history' %}?archived=1" class="btn btn-sm {% if show_archived %}btn-primary{% else %}btn-outline-primary{% endif %}">Arşiv</a>
+</div>
 <div class="card">
   <div class="card-header">
-    <h4 class="card-title mb-0">Son Taramalar</h4>
+    <h4 class="card-title mb-0">{% if show_archived %}Arşivlenmiş{% else %}Son{% endif %} Taramalar</h4>
   </div>
   {% if scans %}
   <div class="card-body p-0">
@@ -37,7 +41,16 @@
         <tbody>
           {% for scan in scans %}
           <tr>
-            <td><strong>{{ scan.domain }}</strong></td>
+            <td>
+              <strong>{{ scan.domain }}</strong>
+              {% with subs=scan.config.discovered_subdomains|default:"" %}
+              {% if subs %}
+              <div class="text-muted small mt-1">
+                {{ scan.config.selected_subdomains|length|default:0 }} / {{ subs|length }} alt alan tarandı
+              </div>
+              {% endif %}
+              {% endwith %}
+            </td>
             <td>
               {% for label in scan.module_labels %}
               <span class="badge badge-default mr-1">{{ label }}</span>
@@ -50,14 +63,35 @@
               <span class="badge badge-danger">Başarısız</span>
               {% elif scan.status == 'running' %}
               <span class="badge badge-info">Çalışıyor</span>
+              {% elif scan.status == 'awaiting_subdomains' %}
+              <span class="badge badge-warning">Alt Alan Seçimi</span>
+              {% elif scan.status == 'awaiting_ports' %}
+              <span class="badge badge-warning">Port Seçimi</span>
               {% else %}
               <span class="badge badge-default">{{ scan.get_status_display }}</span>
               {% endif %}
             </td>
             <td class="text-muted">{{ scan.created_at|date:"d.m.Y H:i" }}</td>
-            <td class="text-right">
+            <td class="text-right text-nowrap">
+              {% if scan.status == 'running' or scan.status == 'awaiting_subdomains' or scan.status == 'awaiting_ports' or scan.status == 'pending' %}
+              <a href="{% url 'scans:progress' scan.pk %}" class="btn btn-sm btn-info">Canlı İzleme</a>
+              {% endif %}
               <a href="{% url 'scans:detail' scan.pk %}" class="btn btn-sm btn-primary">Görüntüle</a>
               <a href="{% url 'scans:report_pdf' scan.pk %}" class="btn btn-sm btn-outline-default">PDF</a>
+              <form method="post" action="{% url 'scans:archive' scan.pk %}" class="d-inline">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <button type="submit" class="btn btn-sm btn-outline-info" title="Arşivle">
+                  <i class="tim-icons icon-book-bookmark"></i>
+                </button>
+              </form>
+              <form method="post" action="{% url 'scans:delete' scan.pk %}" class="d-inline"
+                    onsubmit="return confirm('Bu tarama kalıcı olarak silinsin mi?');">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-outline-danger" title="Sil">
+                  <i class="tim-icons icon-simple-remove"></i>
+                </button>
+              </form>
             </td>
           </tr>
           {% endfor %}
@@ -69,9 +103,8 @@
   <div class="card-body">
     <div class="empty-state">
       <i class="tim-icons icon-time-alarm d-block"></i>
-      <h5>Henüz tarama yok</h5>
-      <p class="text-muted">İlk taramanızı başlatın, sonuçlar burada listelenecek.</p>
-      <a href="{% url 'scans:index' %}" class="btn btn-primary mt-2">Tarama Başlat</a>
+      <h5>Kayıt yok</h5>
+      <p class="text-muted">{% if show_archived %}Arşivde tarama bulunmuyor.{% else %}İlk taramanızı başlatın.{% endif %}</p>
     </div>
   </div>
   {% endif %}

@@ -11,20 +11,51 @@
   {% block head_extra %}{% endblock %}
 </head>
 <body class="layout-fluid" data-domain="{{ domain|default:'' }}">
+  <div id="sidebar-backdrop" class="sidebar-backdrop" aria-hidden="true"></div>
 
   <div class="page">
-    <header class="navbar navbar-expand-md d-print-none sticky-top border-bottom">
+    <header class="navbar navbar-expand-md d-print-none sticky-top border-bottom d-lg-none">
       <div class="container-xl">
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu" aria-controls="sidebar-menu" aria-expanded="false">
+        <button class="navbar-toggler" type="button" id="sidebar-open-btn" aria-label="Menüyü aç">
           <span class="navbar-toggler-icon"></span>
         </button>
-        <h1 class="navbar-brand navbar-brand-autodark d-none-navbar-horizontal pe-0 pe-md-3 mb-0">
+        <h1 class="navbar-brand navbar-brand-autodark mb-0 ms-2">
+          <a href="{% url 'scans:index' %}" class="d-flex align-items-center text-decoration-none">
+            <span class="avatar avatar-sm bg-primary text-white me-2">WA</span>
+            <span class="fw-bold">WARecon</span>
+          </a>
+        </h1>
+        <div class="navbar-nav flex-row order-md-last align-items-center ms-auto">
+          {% if user.is_authenticated %}
+          <div class="nav-item dropdown">
+            <a href="#" class="nav-link d-flex lh-1 text-reset p-0" data-bs-toggle="dropdown">
+              <span class="avatar avatar-sm bg-primary-lt">{{ user.username|slice:":1"|upper }}</span>
+            </a>
+            <div class="dropdown-menu dropdown-menu-end">
+              <a class="dropdown-item" href="{% url 'scans:history' %}">Geçmiş</a>
+              <form method="post" action="{% url 'scans:logout' %}">
+                {% csrf_token %}
+                <button type="submit" class="dropdown-item">Çıkış</button>
+              </form>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </header>
+
+    <header class="navbar navbar-expand-md d-print-none sticky-top border-bottom d-none d-lg-flex">
+      <div class="container-xl">
+        <h1 class="navbar-brand navbar-brand-autodark pe-0 pe-md-3 mb-0">
           <a href="{% url 'scans:index' %}" class="d-flex align-items-center text-decoration-none">
             <span class="avatar avatar-sm bg-primary text-white me-2">WA</span>
             <span class="fw-bold">WARecon</span>
           </a>
         </h1>
         <div class="navbar-nav flex-row order-md-last align-items-center">
+          <button type="button" class="btn btn-icon btn-ghost-secondary me-2" id="sidebar-collapse-btn" title="Kenar çubuğunu daralt">
+            <i class="ti ti-layout-sidebar-left-collapse"></i>
+          </button>
           <div class="nav-item d-none d-md-flex me-3">
             <span class="badge bg-yellow-lt text-yellow">
               <i class="ti ti-alert-triangle me-1"></i>
@@ -57,8 +88,15 @@
     </header>
 
     <div class="page-wrapper">
-      <aside class="navbar navbar-vertical navbar-expand-lg" data-bs-theme="dark">
-        <div class="collapse navbar-collapse" id="sidebar-menu">
+      <aside class="navbar navbar-vertical navbar-expand-lg" data-bs-theme="dark" id="sidebar">
+        <div class="container-fluid">
+          <div class="d-flex align-items-center justify-content-between w-100 d-lg-none py-2">
+            <span class="fw-bold">Menü</span>
+            <button type="button" class="btn btn-icon btn-ghost-secondary" id="sidebar-close-btn" aria-label="Menüyü kapat">
+              <i class="ti ti-x"></i>
+            </button>
+          </div>
+          <div class="collapse navbar-collapse" id="sidebar-menu">
           <div class="navbar-brand pt-lg-3 pb-lg-2 px-3">
             <a href="{% url 'scans:index' %}" class="d-flex align-items-center text-decoration-none">
               <span class="avatar avatar-sm bg-primary text-white me-2">WA</span>
@@ -103,6 +141,7 @@
               <span class="badge bg-purple-lt">Nuclei</span>
             </div>
           </div>
+          </div>
         </div>
       </aside>
 
@@ -146,6 +185,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.4.0/dist/js/tabler.min.js"></script>
+  <script src="{% static 'js/sidebar.js' %}"></script>
   <script src="{% static 'js/app.js' %}"></script>
   {% block scripts_extra %}{% endblock %}
 </body>

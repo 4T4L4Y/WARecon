@@ -1,311 +1,277 @@
-<!DOCTYPE html>
-<html lang="tr">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WARecon — Domain Keşif Aracı</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-</head>
-<body data-domain="{{ domain }}">
+{% extends "base.html" %}
 
-  <div id="loading" class="loading-overlay">
-    <div class="loading-card">
-      <div class="spinner"></div>
-      <p>Tarama devam ediyor</p>
-      <small>Seçilen araçlar sırayla çalıştırılıyor, lütfen bekleyin…</small>
+{% block title %}Tarama{% endblock %}
+
+{% block head_extra %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block page_header %}
+<div class="page-header d-print-none mb-4">
+  <div class="row align-items-center">
+    <div class="col">
+      <div class="page-pretitle">Güvenlik Keşfi</div>
+      <h2 class="page-title">Domain Tarama</h2>
     </div>
+    {% if domain %}
+    <div class="col-auto">
+      <span class="badge bg-primary-lt fs-6">
+        <i class="ti ti-world me-1"></i>{{ domain }}
+      </span>
+    </div>
+    {% endif %}
   </div>
+</div>
+{% endblock %}
 
-  <div class="app-shell">
-    <header class="app-header">
-      <div class="brand">
-        <div class="brand-icon">WA</div>
-        <div>
-          <h1>WARecon</h1>
-          <p>Domain keşif ve güvenlik analiz platformu</p>
-        </div>
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-5">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title"><i class="ti ti-adjustments me-2"></i>Yapılandırma</h3>
       </div>
-      <span class="disclaimer-badge">Yalnızca yetkili hedeflerde kullanın</span>
-    </header>
-
-    <div class="layout">
-      <aside class="panel">
-        <div class="panel-header">
-          <h2>Tarama Yapılandırması</h2>
-          <p>Hedef domain girin ve çalıştırılacak modülleri seçin</p>
-        </div>
-        <div class="panel-body">
-          <form action="/" method="post" id="scanForm">
-            <div class="field">
-              <label for="domain">Hedef Domain / URL</label>
-              <input
-                type="text"
-                name="domain"
-                id="domain"
-                value="{{ domain }}"
-                placeholder="ornek.com veya https://ornek.com"
-                required
-                autocomplete="off"
-              >
+      <div class="card-body">
+        <form action="/" method="post" id="scanForm">
+          <div class="mb-3">
+            <label class="form-label required" for="domain">Hedef Domain / URL</label>
+            <div class="input-icon">
+              <span class="input-icon-addon"><i class="ti ti-link"></i></span>
+              <input type="text" class="form-control" name="domain" id="domain"
+                     value="{{ domain }}" placeholder="ornek.com" required autocomplete="off">
             </div>
+          </div>
 
-            <div class="presets">
-              <button type="button" class="preset-btn" onclick="applyPreset('quick')">Hızlı Keşif</button>
-              <button type="button" class="preset-btn" onclick="applyPreset('deep')">Derin Tarama</button>
-              <button type="button" class="preset-btn" onclick="applyPreset('full')">Tam Tarama</button>
+          <div class="mb-3">
+            <label class="form-label">Hızlı Profiller</label>
+            <div class="btn-list">
+              <button type="button" class="btn btn-outline-primary btn-sm" onclick="applyPreset('quick')">
+                <i class="ti ti-bolt me-1"></i>Hızlı Keşif
+              </button>
+              <button type="button" class="btn btn-outline-primary btn-sm" onclick="applyPreset('deep')">
+                <i class="ti ti-search me-1"></i>Derin Tarama
+              </button>
+              <button type="button" class="btn btn-outline-primary btn-sm" onclick="applyPreset('full')">
+                <i class="ti ti-stack-2 me-1"></i>Tam Tarama
+              </button>
             </div>
+          </div>
 
-            <div class="field">
-              <label>Tarama Modülleri</label>
-              <div class="scan-grid">
-                <label class="scan-card">
-                  <input type="checkbox" name="choices" value="1">
-                  <div class="scan-card-inner">
-                    <div class="scan-icon naabu">⚡</div>
-                    <div>
-                      <h3>Port Tarama</h3>
-                      <p>Naabu — Açık portları tespit eder</p>
-                    </div>
-                  </div>
-                </label>
-
-                <label class="scan-card">
-                  <input type="checkbox" name="choices" value="2">
-                  <div class="scan-card-inner">
-                    <div class="scan-icon subdomain">🌐</div>
-                    <div>
-                      <h3>Subdomain Keşfi</h3>
-                      <p>Subfinder — Alt alan adlarını bulur</p>
-                    </div>
-                  </div>
-                </label>
-
-                <label class="scan-card">
-                  <input type="checkbox" name="choices" value="3">
-                  <div class="scan-card-inner">
-                    <div class="scan-icon wayback">📜</div>
-                    <div>
-                      <h3>Wayback URL</h3>
-                      <p>Waybackpy — Arşivlenmiş URL'leri getirir</p>
-                    </div>
-                  </div>
-                </label>
-
-                <label class="scan-card">
-                  <input type="checkbox" name="choices" value="4">
-                  <div class="scan-card-inner">
-                    <div class="scan-icon httpx">🔗</div>
-                    <div>
-                      <h3>Canlı URL Tarama</h3>
-                      <p>HTTPX — Aktif endpoint'leri doğrular</p>
-                    </div>
-                  </div>
-                </label>
-
-                <label class="scan-card">
-                  <input type="checkbox" name="choices" value="5">
-                  <div class="scan-card-inner">
-                    <div class="scan-icon nuclei">🛡️</div>
-                    <div>
-                      <h3>Zafiyet Tarama</h3>
-                      <p>Nuclei — Bilinen açıkları tarar</p>
-                    </div>
-                  </div>
+          <div class="mb-3">
+            <label class="form-label required">Tarama Modülleri</label>
+            <div class="form-selectgroup form-selectgroup-boxes">
+            <div class="row g-2">
+              {% set modules = [
+                ('1', 'ti-bolt', 'red', 'Port Tarama', 'Naabu — açık portlar'),
+                ('2', 'ti-world', 'green', 'Subdomain', 'Subfinder — alt alan adları'),
+                ('3', 'ti-archive', 'yellow', 'Wayback URL', 'Waybackpy — arşiv URL'),
+                ('4', 'ti-link', 'blue', 'Canlı URL', 'HTTPX — aktif endpoint'),
+                ('5', 'ti-shield', 'purple', 'Zafiyet', 'Nuclei — güvenlik açıkları')
+              ] %}
+              {% for value, icon, color, title, desc in modules %}
+              <div class="col-12">
+                <label class="form-selectgroup-item flex-fill mb-0">
+                  <input type="checkbox" name="choices" value="{{ value }}" class="form-selectgroup-input">
+                  <span class="form-selectgroup-label d-flex align-items-center p-3">
+                    <span class="me-3">
+                      <span class="avatar avatar-sm bg-{{ color }}-lt text-{{ color }}">
+                        <i class="ti {{ icon }}"></i>
+                      </span>
+                    </span>
+                    <span class="form-selectgroup-label-content">
+                      <span class="form-selectgroup-title strong">{{ title }}</span>
+                      <span class="d-block text-secondary small">{{ desc }}</span>
+                    </span>
+                  </span>
                 </label>
               </div>
+              {% endfor %}
             </div>
-
-            <div id="naabuOptions" class="tool-options">
-              <h4>Naabu Ayarları</h4>
-              <div class="field" style="margin-bottom:0">
-                <label for="naabuPorts">Portlar (isteğe bağlı)</label>
-                <input type="text" id="naabuPorts" name="naabuPorts" placeholder="80,443,8080">
-              </div>
             </div>
+          </div>
 
-            <div id="subdomainOptions" class="tool-options">
-              <h4>Subfinder Ayarları</h4>
-              <label class="checkbox-row">
-                <input type="checkbox" name="subdomainParams" value="-all">
-                Tüm kaynakları kullan (-all, yavaş)
+          <div id="naabuOptions" class="card card-sm bg-secondary-lt mb-3 d-none">
+            <div class="card-body">
+              <div class="subheader mb-2">Naabu Ayarları</div>
+              <label class="form-label" for="naabuPorts">Portlar (isteğe bağlı)</label>
+              <input type="text" class="form-control form-control-sm" id="naabuPorts" name="naabuPorts" placeholder="80,443,8080">
+            </div>
+          </div>
+
+          <div id="subdomainOptions" class="card card-sm bg-secondary-lt mb-3 d-none">
+            <div class="card-body">
+              <div class="subheader mb-2">Subfinder Ayarları</div>
+              <label class="form-check">
+                <input class="form-check-input" type="checkbox" name="subdomainParams" value="-all">
+                <span class="form-check-label">Tüm kaynakları kullan (-all, yavaş)</span>
               </label>
             </div>
+          </div>
 
-            <div id="waybackOptions" class="tool-options">
-              <h4>Wayback Ayarları</h4>
-              <label class="checkbox-row">
-                <input type="checkbox" name="waybackKnownUrls" id="waybackKnownUrls" onchange="toggleSubdomainOption()">
-                Bilinen URL'leri getir
+          <div id="waybackOptions" class="card card-sm bg-secondary-lt mb-3 d-none">
+            <div class="card-body">
+              <div class="subheader mb-2">Wayback Ayarları</div>
+              <label class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" name="waybackKnownUrls" id="waybackKnownUrls" onchange="toggleSubdomainOption()">
+                <span class="form-check-label">Bilinen URL'leri getir</span>
               </label>
-              <label class="checkbox-row" id="includeSubdomainsContainer" style="display:none">
-                <input type="checkbox" name="includeSubdomains">
-                Subdomain'leri dahil et
+              <label class="form-check d-none" id="includeSubdomainsContainer">
+                <input class="form-check-input" type="checkbox" name="includeSubdomains">
+                <span class="form-check-label">Subdomain'leri dahil et</span>
               </label>
-              <p style="margin:8px 0 0;font-size:0.75rem;color:var(--muted)">
-                Subdomain listesi gerektirir — önce Subfinder çalıştırın.
+              <p class="text-secondary small mb-0 mt-2">
+                <i class="ti ti-info-circle me-1"></i>Subfinder çıktısı gerektirir.
               </p>
             </div>
+          </div>
 
-            <div id="httpxOptions" class="tool-options">
-              <h4>HTTPX Ayarları</h4>
-              <label class="checkbox-row">
-                <input type="checkbox" name="httpxFollowRedirects">
-                Yönlendirmeleri takip et (-fr)
+          <div id="httpxOptions" class="card card-sm bg-secondary-lt mb-3 d-none">
+            <div class="card-body">
+              <div class="subheader mb-2">HTTPX Ayarları</div>
+              <label class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" name="httpxFollowRedirects">
+                <span class="form-check-label">Yönlendirmeleri takip et (-fr)</span>
               </label>
-              <label class="checkbox-row">
-                <input type="checkbox" name="httpxStatusCode">
-                Durum kodlarını göster (-sc)
+              <label class="form-check mb-2">
+                <input class="form-check-input" type="checkbox" name="httpxStatusCode">
+                <span class="form-check-label">Durum kodlarını göster (-sc)</span>
               </label>
-              <div class="field" style="margin-bottom:0">
-                <label for="httpxMatchCodes">Durum kodu filtresi (-mc)</label>
-                <input type="text" name="httpxMatchCodes" id="httpxMatchCodes" placeholder="200,302,404">
+              <label class="form-label" for="httpxMatchCodes">Durum kodu filtresi (-mc)</label>
+              <input type="text" class="form-control form-control-sm" name="httpxMatchCodes" id="httpxMatchCodes" placeholder="200,302,404">
+            </div>
+          </div>
+
+          <div id="nucleiOptions" class="card card-sm bg-secondary-lt mb-3 d-none">
+            <div class="card-body">
+              <div class="subheader mb-2">Nuclei Ayarları</div>
+              <label class="form-label" for="nucleiTemplates">Şablon ID'leri</label>
+              <input type="text" class="form-control form-control-sm mb-3" name="nucleiTemplates" id="nucleiTemplates" placeholder="caa-fingerprint">
+              <label class="form-label">Önem derecesi</label>
+              <div class="form-selectgroup form-selectgroup-pills">
+                {% for sev, color in [('critical','red'),('high','orange'),('medium','yellow'),('low','green'),('info','blue')] %}
+                <label class="form-selectgroup-item">
+                  <input type="checkbox" name="nucleiSeverity" value="{{ sev }}" class="form-selectgroup-input">
+                  <span class="form-selectgroup-label text-{{ color }}">{{ sev | capitalize }}</span>
+                </label>
+                {% endfor %}
               </div>
             </div>
-
-            <div id="nucleiOptions" class="tool-options">
-              <h4>Nuclei Ayarları</h4>
-              <div class="field">
-                <label for="nucleiTemplates">Şablon ID'leri</label>
-                <input type="text" name="nucleiTemplates" id="nucleiTemplates" placeholder="caa-fingerprint, tls-version">
-              </div>
-              <div class="field" style="margin-bottom:0">
-                <label>Önem derecesi</label>
-                <div class="severity-chips">
-                  <label class="severity-chip critical">
-                    <input type="checkbox" name="nucleiSeverity" value="critical">
-                    <span>Critical</span>
-                  </label>
-                  <label class="severity-chip high">
-                    <input type="checkbox" name="nucleiSeverity" value="high">
-                    <span>High</span>
-                  </label>
-                  <label class="severity-chip medium">
-                    <input type="checkbox" name="nucleiSeverity" value="medium">
-                    <span>Medium</span>
-                  </label>
-                  <label class="severity-chip low">
-                    <input type="checkbox" name="nucleiSeverity" value="low">
-                    <span>Low</span>
-                  </label>
-                  <label class="severity-chip info">
-                    <input type="checkbox" name="nucleiSeverity" value="info">
-                    <span>Info</span>
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            <button type="submit" class="submit-btn">Taramayı Başlat</button>
-          </form>
-        </div>
-      </aside>
-
-      <main class="panel">
-        <div class="panel-header">
-          <h2>Sonuçlar</h2>
-          <p>{% if domain %}<strong>{{ domain }}</strong> için tarama çıktıları{% else %}Tarama sonuçları burada görünecek{% endif %}</p>
-        </div>
-
-        {% set has_results = naabu_output or subdomain_output or wayback_output or httpx_output or nuclei_output %}
-
-        {% if has_results %}
-        <div class="results-tabs">
-          {% if naabu_output %}
-          <button type="button" class="tab-btn{% if naabu_output %} active{% endif %}" data-tab="naabu">Port Tarama</button>
-          {% endif %}
-          {% if subdomain_output %}
-          <button type="button" class="tab-btn{% if not naabu_output and subdomain_output %} active{% endif %}" data-tab="subdomain">Subdomain</button>
-          {% endif %}
-          {% if wayback_output %}
-          <button type="button" class="tab-btn{% if not naabu_output and not subdomain_output and wayback_output %} active{% endif %}" data-tab="wayback">Wayback</button>
-          {% endif %}
-          {% if httpx_output %}
-          <button type="button" class="tab-btn{% if not naabu_output and not subdomain_output and not wayback_output and httpx_output %} active{% endif %}" data-tab="httpx">HTTPX</button>
-          {% endif %}
-          {% if nuclei_output %}
-          <button type="button" class="tab-btn{% if not naabu_output and not subdomain_output and not wayback_output and not httpx_output and nuclei_output %} active{% endif %}" data-tab="nuclei">Nuclei</button>
-          {% endif %}
-        </div>
-
-        {% if naabu_output %}
-        <div id="tab-naabu" class="tab-panel active">
-          <div class="result-toolbar">
-            <h3>Naabu — Port Tarama</h3>
-            <a class="download-btn" href="/outputs/{{ domain }}_naabu.txt">⬇ İndir</a>
           </div>
-          <pre class="result-pre">{{ naabu_output }}</pre>
-        </div>
-        {% endif %}
 
-        {% if subdomain_output %}
-        <div id="tab-subdomain" class="tab-panel{% if not naabu_output %} active{% endif %}">
-          <div class="result-toolbar">
-            <h3>Subfinder — Subdomain Keşfi</h3>
-            <a class="download-btn" href="/outputs/{{ domain }}_subdomains.txt">⬇ İndir</a>
-          </div>
-          <pre class="result-pre">{{ subdomain_output }}</pre>
-        </div>
-        {% endif %}
-
-        {% if wayback_output %}
-        <div id="tab-wayback" class="tab-panel{% if not naabu_output and not subdomain_output %} active{% endif %}">
-          <div class="result-toolbar">
-            <h3>Wayback — Arşiv URL'leri</h3>
-            <a class="download-btn" href="/outputs/{{ domain }}_wayback.txt">⬇ İndir</a>
-          </div>
-          <pre class="result-pre">{{ wayback_output }}</pre>
-        </div>
-        {% endif %}
-
-        {% if httpx_output %}
-        <div id="tab-httpx" class="tab-panel{% if not naabu_output and not subdomain_output and not wayback_output %} active{% endif %}">
-          <div class="result-toolbar">
-            <h3>HTTPX — Canlı URL'ler</h3>
-            <a class="download-btn" href="/outputs/{{ domain }}_httpx.txt">⬇ İndir</a>
-          </div>
-          <pre class="result-pre">{{ httpx_output }}</pre>
-        </div>
-        {% endif %}
-
-        {% if nuclei_output %}
-        <div id="tab-nuclei" class="tab-panel{% if not naabu_output and not subdomain_output and not wayback_output and not httpx_output %} active{% endif %}">
-          <div class="result-toolbar">
-            <h3>Nuclei — Zafiyet Sonuçları</h3>
-            <a class="download-btn" href="/outputs/{{ domain }}_nuclei.txt">⬇ İndir</a>
-          </div>
-          <pre class="result-pre">{{ nuclei_output }}</pre>
-
-          <div id="chartSection" class="chart-section" style="display:none">
-            <h3>Zafiyet Dağılımı</h3>
-            <div class="chart-wrap">
-              <canvas id="nucleiChart"></canvas>
-            </div>
-            <div id="severityLegendContainer"></div>
-          </div>
-        </div>
-        {% endif %}
-
-        {% else %}
-        <div class="results-empty">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-          </svg>
-          <p>Henüz sonuç yok</p>
-          <small>Sol panelden domain girin, modül seçin ve taramayı başlatın.</small>
-        </div>
-        {% endif %}
-      </main>
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="ti ti-player-play me-2"></i>Taramayı Başlat
+          </button>
+        </form>
+      </div>
     </div>
-
-    <footer class="app-footer">
-      WARecon — Naabu · Subfinder · Waybackpy · HTTPX · Nuclei
-    </footer>
   </div>
 
-  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
-</body>
-</html>
+  <div class="col-lg-7">
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title"><i class="ti ti-list-details me-2"></i>Sonuçlar</h3>
+        {% if domain %}
+        <div class="card-actions">
+          <span class="text-secondary small">{{ domain }}</span>
+        </div>
+        {% endif %}
+      </div>
+
+      {% set has_results = naabu_output or subdomain_output or wayback_output or httpx_output or nuclei_output %}
+
+      {% if has_results %}
+      <div class="card-header card-header-tabs">
+        <ul class="nav nav-tabs card-header-tabs" role="tablist">
+          {% if naabu_output %}
+          <li class="nav-item"><a class="nav-link active" data-bs-toggle="tab" href="#tab-naabu" role="tab"><i class="ti ti-bolt me-1"></i>Port</a></li>
+          {% endif %}
+          {% if subdomain_output %}
+          <li class="nav-item"><a class="nav-link{% if not naabu_output %} active{% endif %}" data-bs-toggle="tab" href="#tab-subdomain" role="tab"><i class="ti ti-world me-1"></i>Subdomain</a></li>
+          {% endif %}
+          {% if wayback_output %}
+          <li class="nav-item"><a class="nav-link{% if not naabu_output and not subdomain_output %} active{% endif %}" data-bs-toggle="tab" href="#tab-wayback" role="tab"><i class="ti ti-archive me-1"></i>Wayback</a></li>
+          {% endif %}
+          {% if httpx_output %}
+          <li class="nav-item"><a class="nav-link{% if not naabu_output and not subdomain_output and not wayback_output %} active{% endif %}" data-bs-toggle="tab" href="#tab-httpx" role="tab"><i class="ti ti-link me-1"></i>HTTPX</a></li>
+          {% endif %}
+          {% if nuclei_output %}
+          <li class="nav-item"><a class="nav-link{% if not naabu_output and not subdomain_output and not wayback_output and not httpx_output %} active{% endif %}" data-bs-toggle="tab" href="#tab-nuclei" role="tab"><i class="ti ti-shield me-1"></i>Nuclei</a></li>
+          {% endif %}
+        </ul>
+      </div>
+      <div class="card-body">
+        <div class="tab-content">
+          {% if naabu_output %}
+          <div class="tab-pane active show" id="tab-naabu" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <span class="text-secondary">Naabu port tarama çıktısı</span>
+              <a class="btn btn-sm btn-outline-primary" href="/outputs/{{ domain }}_naabu.txt"><i class="ti ti-download me-1"></i>İndir</a>
+            </div>
+            <pre class="result-output">{{ naabu_output }}</pre>
+          </div>
+          {% endif %}
+
+          {% if subdomain_output %}
+          <div class="tab-pane{% if not naabu_output %} active show{% endif %}" id="tab-subdomain" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <span class="text-secondary">Subfinder keşif çıktısı</span>
+              <a class="btn btn-sm btn-outline-primary" href="/outputs/{{ domain }}_subdomains.txt"><i class="ti ti-download me-1"></i>İndir</a>
+            </div>
+            <pre class="result-output">{{ subdomain_output }}</pre>
+          </div>
+          {% endif %}
+
+          {% if wayback_output %}
+          <div class="tab-pane{% if not naabu_output and not subdomain_output %} active show{% endif %}" id="tab-wayback" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <span class="text-secondary">Wayback arşiv URL'leri</span>
+              <a class="btn btn-sm btn-outline-primary" href="/outputs/{{ domain }}_wayback.txt"><i class="ti ti-download me-1"></i>İndir</a>
+            </div>
+            <pre class="result-output">{{ wayback_output }}</pre>
+          </div>
+          {% endif %}
+
+          {% if httpx_output %}
+          <div class="tab-pane{% if not naabu_output and not subdomain_output and not wayback_output %} active show{% endif %}" id="tab-httpx" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <span class="text-secondary">HTTPX canlı URL doğrulama</span>
+              <a class="btn btn-sm btn-outline-primary" href="/outputs/{{ domain }}_httpx.txt"><i class="ti ti-download me-1"></i>İndir</a>
+            </div>
+            <pre class="result-output">{{ httpx_output }}</pre>
+          </div>
+          {% endif %}
+
+          {% if nuclei_output %}
+          <div class="tab-pane{% if not naabu_output and not subdomain_output and not wayback_output and not httpx_output %} active show{% endif %}" id="tab-nuclei" role="tabpanel">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <span class="text-secondary">Nuclei zafiyet sonuçları</span>
+              <a class="btn btn-sm btn-outline-primary" href="/outputs/{{ domain }}_nuclei.txt"><i class="ti ti-download me-1"></i>İndir</a>
+            </div>
+            <pre class="result-output">{{ nuclei_output }}</pre>
+            <div id="chartSection" class="mt-4" style="display:none">
+              <div class="subheader mb-3">Zafiyet Dağılımı</div>
+              <div class="chart-wrap">
+                <canvas id="nucleiChart"></canvas>
+              </div>
+              <div id="severityLegendContainer" class="mt-3"></div>
+            </div>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      {% else %}
+      <div class="card-body">
+        <div class="empty">
+          <div class="empty-icon"><i class="ti ti-radar-2 icon-lg text-secondary"></i></div>
+          <p class="empty-title">Henüz sonuç yok</p>
+          <p class="empty-subtitle text-secondary">
+            Sol panelden hedef domain girin, modül seçin ve taramayı başlatın.
+          </p>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

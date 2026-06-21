@@ -2,16 +2,24 @@ function toggleOptions() {
   const selected = Array.from(document.querySelectorAll('input[name="choices"]:checked'))
     .map((el) => el.value);
 
-  document.getElementById('naabuOptions').classList.toggle('visible', selected.includes('1'));
-  document.getElementById('subdomainOptions').classList.toggle('visible', selected.includes('2'));
-  document.getElementById('waybackOptions').classList.toggle('visible', selected.includes('3'));
-  document.getElementById('httpxOptions').classList.toggle('visible', selected.includes('4'));
-  document.getElementById('nucleiOptions').classList.toggle('visible', selected.includes('5'));
+  const map = {
+    1: 'naabuOptions',
+    2: 'subdomainOptions',
+    3: 'waybackOptions',
+    4: 'httpxOptions',
+    5: 'nucleiOptions',
+  };
+
+  Object.entries(map).forEach(([value, id]) => {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('d-none', !selected.includes(value));
+  });
 }
 
 function toggleSubdomainOption() {
   const known = document.getElementById('waybackKnownUrls').checked;
-  document.getElementById('includeSubdomainsContainer').style.display = known ? 'flex' : 'none';
+  const container = document.getElementById('includeSubdomainsContainer');
+  container.classList.toggle('d-none', !known);
 }
 
 function applyPreset(preset) {
@@ -31,21 +39,6 @@ function applyPreset(preset) {
   });
 
   toggleOptions();
-}
-
-function initTabs() {
-  const tabs = document.querySelectorAll('.tab-btn');
-  const panels = document.querySelectorAll('.tab-panel');
-
-  if (!tabs.length) return;
-
-  tabs.forEach((tab) => {
-    tab.addEventListener('click', () => {
-      const target = tab.dataset.tab;
-      tabs.forEach((t) => t.classList.toggle('active', t === tab));
-      panels.forEach((p) => p.classList.toggle('active', p.id === `tab-${target}`));
-    });
-  });
 }
 
 function fetchNucleiDataAndRenderChart(domain) {
@@ -69,22 +62,22 @@ function renderSeverityLegend() {
   const container = document.getElementById('severityLegendContainer');
   container.innerHTML = `
     <div class="severity-legend">
-      <span class="legend-item"><span class="color-box" style="background:#ef4444"></span> Critical</span>
-      <span class="legend-item"><span class="color-box" style="background:#f97316"></span> High</span>
-      <span class="legend-item"><span class="color-box" style="background:#eab308"></span> Medium</span>
-      <span class="legend-item"><span class="color-box" style="background:#22c55e"></span> Low</span>
-      <span class="legend-item"><span class="color-box" style="background:#3b82f6"></span> Info</span>
+      <span class="legend-item"><span class="color-box" style="background:#d63939"></span> Critical</span>
+      <span class="legend-item"><span class="color-box" style="background:#f76707"></span> High</span>
+      <span class="legend-item"><span class="color-box" style="background:#f59f00"></span> Medium</span>
+      <span class="legend-item"><span class="color-box" style="background:#2fb344"></span> Low</span>
+      <span class="legend-item"><span class="color-box" style="background:#206bc4"></span> Info</span>
     </div>
   `;
 }
 
 function severityColor(severity) {
   const map = {
-    critical: 'rgba(239, 68, 68, 0.75)',
-    high: 'rgba(249, 115, 22, 0.75)',
-    medium: 'rgba(234, 179, 8, 0.75)',
-    low: 'rgba(34, 197, 94, 0.75)',
-    info: 'rgba(59, 130, 246, 0.75)',
+    critical: 'rgba(214, 57, 57, 0.75)',
+    high: 'rgba(247, 103, 7, 0.75)',
+    medium: 'rgba(245, 159, 0, 0.75)',
+    low: 'rgba(47, 179, 68, 0.75)',
+    info: 'rgba(32, 107, 196, 0.75)',
   };
   return map[severity] || 'rgba(148, 163, 184, 0.75)';
 }
@@ -117,27 +110,27 @@ function renderNucleiChart(data) {
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-      },
+      plugins: { legend: { display: false } },
       scales: {
         y: {
           beginAtZero: true,
           max: 5,
           ticks: {
             stepSize: 1,
-            color: '#8b97ab',
             callback: (v) => ['', 'Info', 'Low', 'Medium', 'High', 'Critical'][v] || '',
           },
-          grid: { color: 'rgba(42, 53, 72, 0.8)' },
         },
-        x: {
-          ticks: { color: '#8b97ab', maxRotation: 45 },
-          grid: { display: false },
-        },
+        x: { ticks: { maxRotation: 45 } },
       },
     },
   });
+}
+
+function showLoadingModal() {
+  const modalEl = document.getElementById('loadingModal');
+  if (modalEl && window.bootstrap) {
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+  }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -146,18 +139,20 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   toggleOptions();
-  initTabs();
 
   const domain = document.body.dataset.domain;
   if (domain) fetchNucleiDataAndRenderChart(domain);
 
-  document.querySelector('form').addEventListener('submit', (e) => {
-    const checked = document.querySelectorAll('input[name="choices"]:checked');
-    if (!checked.length) {
-      e.preventDefault();
-      alert('Lütfen en az bir tarama modülü seçin.');
-      return;
-    }
-    document.getElementById('loading').classList.add('visible');
-  });
+  const form = document.getElementById('scanForm');
+  if (form) {
+    form.addEventListener('submit', (e) => {
+      const checked = document.querySelectorAll('input[name="choices"]:checked');
+      if (!checked.length) {
+        e.preventDefault();
+        alert('Lütfen en az bir tarama modülü seçin.');
+        return;
+      }
+      showLoadingModal();
+    });
+  }
 });

@@ -30,6 +30,7 @@ docker compose exec web python manage.py createsuperuser
 - Uygulama: http://127.0.0.1:8000/
 - Veritabanı ve tarama çıktıları `warecon_data` volume içinde kalır
 - `web` (Gunicorn) + `worker` (RQ) + `redis` birlikte çalışır
+- ProjectDiscovery araçları Docker imajına GitHub release binary'leri ile eklenir (`docker/install-pd-tools.sh`)
 
 Durdurmak: `docker compose down`  
 Verileri de silmek: `docker compose down -v`

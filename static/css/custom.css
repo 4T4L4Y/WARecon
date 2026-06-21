@@ -1,18 +1,17 @@
-/* WARecon — Tabler özelleştirmeleri */
-
 .result-output {
   margin: 0;
   padding: 1rem;
-  background: var(--tblr-bg-surface-secondary);
-  border: 1px solid var(--tblr-border-color);
-  border-radius: var(--tblr-border-radius);
-  font-family: var(--tblr-font-monospace);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.4285rem;
+  font-family: SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   font-size: 0.8125rem;
   line-height: 1.6;
   max-height: 420px;
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-all;
+  color: rgba(255, 255, 255, 0.85);
 }
 
 .chart-wrap {
@@ -32,7 +31,7 @@
   align-items: center;
   gap: 0.35rem;
   font-size: 0.75rem;
-  color: var(--tblr-secondary);
+  color: rgba(255, 255, 255, 0.6);
 }
 
 .color-box {
@@ -41,71 +40,132 @@
   border-radius: 50%;
 }
 
-.form-selectgroup-label {
-  width: 100%;
-}
-
-/* Sidebar — mobil overlay ve kapatma */
-.sidebar-backdrop {
-  display: none;
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.55);
-  z-index: 1025;
-}
-
-.sidebar-backdrop.show {
+/* Module selection cards */
+.module-card {
   display: block;
+  cursor: pointer;
+  margin-bottom: 0.75rem;
 }
 
-body.sidebar-open {
-  overflow: hidden;
+.module-card input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
 }
 
-@media (max-width: 991.98px) {
-  #sidebar.navbar-vertical {
-    z-index: 1030;
-  }
-
-  #sidebar .navbar-collapse {
-    position: fixed;
-    top: 0;
-    left: 0;
-    bottom: 0;
-    width: min(18rem, 88vw);
-    padding: 0.75rem;
-    background: var(--tblr-bg-surface);
-    border-right: 1px solid var(--tblr-border-color);
-    transform: translateX(-100%);
-    transition: transform 0.2s ease-in-out;
-    display: block !important;
-    visibility: visible !important;
-    overflow-y: auto;
-    z-index: 1031;
-  }
-
-  #sidebar .navbar-collapse.show {
-    transform: translateX(0);
-  }
+.module-card .card {
+  margin-bottom: 0;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-/* Masaüstü — kenar çubuğunu daralt */
-@media (min-width: 992px) {
-  body.sidebar-collapse .navbar-vertical {
-    width: 0;
-    min-width: 0;
-    overflow: hidden;
-    padding: 0;
-    border: none;
-  }
-
-  body.sidebar-collapse .page-wrapper {
-    margin-left: 0;
-  }
+.module-card input:checked + .card {
+  border-color: #1d8cf8;
+  box-shadow: 0 0 0 1px rgba(29, 140, 248, 0.35);
 }
 
-@media (min-width: 992px) {
-  .navbar-vertical .navbar-nav {
-    min-height: auto;
-  }
+.module-card .module-icon {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+}
+
+.module-icon-red { background: rgba(253, 93, 147, 0.15); color: #fd5d93; }
+.module-icon-green { background: rgba(0, 242, 195, 0.15); color: #00f2c3; }
+.module-icon-yellow { background: rgba(255, 214, 0, 0.15); color: #ffd600; }
+.module-icon-blue { background: rgba(29, 140, 248, 0.15); color: #1d8cf8; }
+.module-icon-purple { background: rgba(155, 81, 224, 0.15); color: #9b51e0; }
+.module-icon-cyan { background: rgba(17, 205, 239, 0.15); color: #11cdef; }
+.module-icon-orange { background: rgba(251, 99, 64, 0.15); color: #fb6340; }
+
+.sidebar-tools {
+  margin-top: 1rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 1rem;
+}
+
+.sidebar .nav li.active > a {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* Auth pages */
+body.login-page {
+  background: #1e1e2f;
+}
+
+body.login-page .content {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  padding-top: 2rem;
+  padding-bottom: 2rem;
+}
+
+body.login-page .card {
+  margin-bottom: 0;
+}
+
+body.login-page .card-header {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+/* Empty state */
+.empty-state {
+  text-align: center;
+  padding: 2.5rem 1rem;
+}
+
+.empty-state i {
+  font-size: 2.5rem;
+  color: rgba(255, 255, 255, 0.35);
+  margin-bottom: 1rem;
+}
+
+/* Options panels */
+.options-panel {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 0.4285rem;
+}
+
+/* Severity pills */
+.severity-pills .custom-control {
+  display: inline-block;
+  margin-right: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.severity-pills .custom-control-label {
+  padding: 0.25rem 0.75rem;
+  border-radius: 2rem;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  cursor: pointer;
+}
+
+.severity-pills .custom-control-input:checked ~ .custom-control-label {
+  border-color: #1d8cf8;
+  background: rgba(29, 140, 248, 0.15);
+}
+
+/* Tab content spacing */
+.nav-tabs .nav-link {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.nav-tabs .nav-link.active {
+  color: #fff;
+}
+
+.card-header-tabs {
+  margin-bottom: 0;
+}
+
+.progress {
+  height: 0.5rem;
+  background: rgba(255, 255, 255, 0.08);
 }

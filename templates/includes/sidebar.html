@@ -1,0 +1,46 @@
+<div class="sidebar" data-color="blue">
+  <div class="sidebar-wrapper">
+    <div class="logo">
+      <a href="{% url 'scans:index' %}" class="simple-text logo-mini">WA</a>
+      <a href="{% url 'scans:index' %}" class="simple-text logo-normal">WARecon</a>
+    </div>
+    <ul class="nav">
+      <li class="{% if request.resolver_match.url_name == 'progress' or request.resolver_match.url_name == 'index' and not scan %}active{% endif %}">
+        <a href="{% url 'scans:index' %}">
+          <i class="tim-icons icon-chart-pie-36"></i>
+          <p>Tarama</p>
+        </a>
+      </li>
+      <li class="{% if request.resolver_match.url_name == 'history' %}active{% endif %}">
+        <a href="{% url 'scans:history' %}">
+          <i class="tim-icons icon-time-alarm"></i>
+          <p>Geçmiş</p>
+        </a>
+      </li>
+      <li>
+        <a href="/api/scans/" target="_blank" rel="noopener">
+          <i class="tim-icons icon-send"></i>
+          <p>API</p>
+        </a>
+      </li>
+      <li>
+        <a href="/admin/" target="_blank" rel="noopener">
+          <i class="tim-icons icon-settings-gear-63"></i>
+          <p>Admin</p>
+        </a>
+      </li>
+    </ul>
+    <div class="sidebar-tools px-3 pb-3">
+      <p class="text-muted small mb-2">Araçlar</p>
+      <div class="d-flex flex-wrap">
+        <span class="badge badge-danger mr-1 mb-1">Naabu</span>
+        <span class="badge badge-success mr-1 mb-1">Subfinder</span>
+        <span class="badge badge-info mr-1 mb-1">dnsx</span>
+        <span class="badge badge-warning mr-1 mb-1">Wayback</span>
+        <span class="badge badge-primary mr-1 mb-1">HTTPX</span>
+        <span class="badge badge-default mr-1 mb-1">Katana</span>
+        <span class="badge badge-primary mr-1 mb-1">Nuclei</span>
+      </div>
+    </div>
+  </div>
+</div>

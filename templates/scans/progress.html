@@ -1,17 +1,14 @@
 {% extends "base.html" %}
 {% block title %}Tarama İlerlemesi{% endblock %}
-{% block nav_scan_active %}active{% endblock %}
 
 {% block page_header %}
-<div class="page-header d-print-none mb-4">
-  <div class="row align-items-center">
-    <div class="col">
-      <div class="page-pretitle">Canlı İzleme</div>
-      <h2 class="page-title">{{ scan.domain }}</h2>
-    </div>
-    <div class="col-auto">
-      <span class="badge bg-blue-lt" id="statusBadge">{{ scan.get_status_display }}</span>
-    </div>
+<div class="row mb-4 align-items-center">
+  <div class="col-sm-6">
+    <p class="text-muted mb-1">Canlı İzleme</p>
+    <h2 class="mb-0">{{ scan.domain }}</h2>
+  </div>
+  <div class="col-sm-6 text-sm-right">
+    <span class="badge badge-info" id="statusBadge">{{ scan.get_status_display }}</span>
   </div>
 </div>
 {% endblock %}
@@ -24,9 +21,9 @@
       <span id="progressPercent">{{ scan.progress_percent }}%</span>
     </div>
     <div class="progress mb-4">
-      <div class="progress-bar progress-bar-indeterminate" id="progressBar" style="width: {{ scan.progress_percent }}%"></div>
+      <div class="progress-bar bg-primary" id="progressBar" style="width: {{ scan.progress_percent }}%"></div>
     </div>
-    <p class="text-secondary small mb-0" id="moduleInfo">
+    <p class="text-muted small mb-0" id="moduleInfo">
       {% if scan.current_module %}Modül: {{ scan.current_module }}{% endif %}
     </p>
   </div>

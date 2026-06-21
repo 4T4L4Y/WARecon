@@ -18,12 +18,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (data.status === 'completed') {
       badge.textContent = 'Tamamlandı';
-      badge.className = 'badge bg-green-lt';
+      badge.className = 'badge badge-success';
       source.close();
       setTimeout(() => { window.location.href = window.SCAN_DETAIL_URL; }, 800);
     } else if (data.status === 'failed') {
       badge.textContent = 'Başarısız';
-      badge.className = 'badge bg-red-lt';
+      badge.className = 'badge badge-danger';
       msg.textContent = data.error || data.message || 'Tarama başarısız.';
       source.close();
     }

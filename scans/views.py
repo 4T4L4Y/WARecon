@@ -337,8 +337,11 @@ def scan_skip_module(request, pk: int):
     scan = get_object_or_404(_user_scans(request.user), pk=pk)
     module = scan.current_module or request.POST.get("module", "")
     if module:
+        from scans.services.pipeline import MODULE_LABELS
+
         request_skip_module(scan, module)
-        messages.info(request, f"{module} modülü atlanıyor…")
+        label = MODULE_LABELS.get(module, module)
+        messages.info(request, f"{label} atlanıyor…")
     return redirect("scans:progress", pk=pk)
 
 

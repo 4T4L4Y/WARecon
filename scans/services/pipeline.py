@@ -4,7 +4,12 @@ from django.utils.safestring import mark_safe
 from scans.models import Scan, ScanModuleResult
 from scans.services.formatters import format_module_output, strip_html_output
 from scans.services.output_utils import normalize_tool_output
-from scans.services.scan_control import consume_skip, is_cancelled, mark_module_started
+from scans.services.scan_control import (
+    consume_skip,
+    is_cancelled,
+    mark_module_started,
+    skip_steps_match,
+)
 from scans.services.live_log import bind_scan_log, log_activity, reset_scan_log
 from scans.services.output_paths import list_subdomains, read_file, safe_name, scan_output_dir
 
@@ -212,7 +217,7 @@ def execute_scan(scan_id: int) -> None:
                 log_activity("Tarama iptal edildi.", level="warning")
                 return
 
-            if scan.skip_module_requested == step:
+            if skip_steps_match(scan.skip_module_requested, step):
                 consume_skip(scan, step)
                 label = MODULE_LABELS.get(step, step)
                 log_activity(f"⏭ {label} atlandı — mevcut çıktılarla devam.", level="warning", module=step)
@@ -284,6 +289,15 @@ def execute_scan(scan_id: int) -> None:
                 _save_module_result(scan, module_key, output_text, filename)
                 line_count = len([ln for ln in output_text.splitlines() if ln.strip()])
                 log_activity(f"✓ {label} bitti — {line_count} satır.", level="success", module=step)
+
+            scan.refresh_from_db()
+            if skip_steps_match(scan.skip_module_requested, step):
+                consume_skip(scan, step)
+                log_activity(
+                    f"⏭ {label} atlandı — mevcut çıktılarla devam.",
+                    level="warning",
+                    module=step,
+                )
 
             completed.add(step)
             config["completed_steps"] = list(completed)

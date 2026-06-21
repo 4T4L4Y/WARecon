@@ -7,6 +7,24 @@ from scans.models import Scan
 
 SKIP_AFTER_SECONDS = 120
 
+# UI alt-modül kimlikleri → pipeline adım kimliği (Naabu+Nmap tek adım "1")
+SKIP_STEP_ALIASES: dict[str, str] = {
+    "8": "1",
+}
+
+
+def skip_step_id(module: str) -> str:
+    """Normalize UI/current_module id to pipeline step id for skip matching."""
+    if not module:
+        return ""
+    return SKIP_STEP_ALIASES.get(module, module)
+
+
+def skip_steps_match(requested: str, step: str) -> bool:
+    if not requested or not step:
+        return False
+    return skip_step_id(requested) == skip_step_id(step)
+
 
 def is_cancelled(scan_id: int) -> bool:
     return Scan.objects.filter(pk=scan_id, cancel_requested=True).exists()
@@ -32,7 +50,7 @@ def request_cancel(scan: Scan) -> None:
 
 
 def request_skip_module(scan: Scan, module: str) -> None:
-    scan.skip_module_requested = module
+    scan.skip_module_requested = skip_step_id(module)
     scan.save(update_fields=["skip_module_requested"])
     from scans.services.proc_registry import kill_all
 
@@ -40,7 +58,7 @@ def request_skip_module(scan: Scan, module: str) -> None:
 
 
 def consume_skip(scan: Scan, module: str) -> bool:
-    if scan.skip_module_requested != module:
+    if not skip_steps_match(scan.skip_module_requested, module):
         return False
     scan.skip_module_requested = ""
     scan.save(update_fields=["skip_module_requested"])
@@ -72,7 +90,8 @@ def module_elapsed_seconds(scan: Scan, module: str) -> float:
 def skip_available(scan: Scan) -> bool:
     if scan.status != Scan.Status.RUNNING or not scan.current_module:
         return False
-    return module_elapsed_seconds(scan, scan.current_module) >= SKIP_AFTER_SECONDS
+    step = skip_step_id(scan.current_module)
+    return module_elapsed_seconds(scan, step) >= SKIP_AFTER_SECONDS
 
 
 def check_abort(scan_id: int, module: str = "") -> str | None:
@@ -84,6 +103,6 @@ def check_abort(scan_id: int, module: str = "") -> str | None:
         return None
     if scan.cancel_requested:
         return "cancel"
-    if module and scan.skip_module_requested == module:
+    if module and skip_steps_match(scan.skip_module_requested, module):
         return "skip"
     return None

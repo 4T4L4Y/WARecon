@@ -6,6 +6,13 @@ from scans.models import ScanLog
 from scans.services.formatters import format_naabu, format_dnsx, parse_nmap_exploits, strip_html_output
 from scans.services.output_utils import extract_urls_from_text, strip_ansi
 from scans.services.live_log import module_status_for_scan
+from scans.services.scan_control import (
+    check_abort,
+    request_skip_module,
+    skip_available,
+    skip_step_id,
+    skip_steps_match,
+)
 from scans.services.pipeline import (
     apply_subdomain_selection,
     create_scan,
@@ -104,3 +111,43 @@ class SubdomainSelectionTest(TestCase):
         self.scan.refresh_from_db()
         self.assertEqual(self.scan.config["selected_subdomains"], ["a.example.com"])
         self.assertEqual(self.scan.status, Scan.Status.RUNNING)
+
+
+class SkipModuleControlTest(TestCase):
+    def setUp(self):
+        user = get_user_model().objects.create_user(username="skipuser", password="pass12345")
+        self.scan = create_scan(user, {
+            "domain": "example.com",
+            "choices": ["1", "2"],
+        })
+
+    def test_nmap_ui_id_maps_to_pipeline_step(self):
+        self.assertEqual(skip_step_id("8"), "1")
+        self.assertTrue(skip_steps_match("8", "1"))
+        self.assertTrue(skip_steps_match("1", "8"))
+
+    def test_request_skip_normalizes_nmap(self):
+        self.scan.current_module = "8"
+        self.scan.status = Scan.Status.RUNNING
+        self.scan.save()
+        request_skip_module(self.scan, "8")
+        self.scan.refresh_from_db()
+        self.assertEqual(self.scan.skip_module_requested, "1")
+
+    def test_check_abort_during_nmap_phase(self):
+        self.scan.skip_module_requested = "1"
+        self.scan.save()
+        self.assertEqual(check_abort(self.scan.pk, "1"), "skip")
+
+    def test_skip_available_uses_pipeline_step_timer(self):
+        from datetime import datetime, timedelta, timezone
+
+        self.scan.status = Scan.Status.RUNNING
+        self.scan.current_module = "8"
+        started = datetime.now(timezone.utc) - timedelta(seconds=130)
+        self.scan.config = {
+            **self.scan.config,
+            "module_started_at": {"1": started.isoformat()},
+        }
+        self.scan.save()
+        self.assertTrue(skip_available(self.scan))

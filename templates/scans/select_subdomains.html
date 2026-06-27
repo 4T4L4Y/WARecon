@@ -40,11 +40,11 @@
 
           <div class="selection-list-panel mb-4" id="hostList">
             {% for host in hosts %}
-            <div class="selection-list-item custom-control custom-checkbox" data-label="{{ host }}">
-              <input class="custom-control-input host-checkbox" type="checkbox"
+            <div class="selection-list-item form-check" data-label="{{ host }}">
+              <input class="form-check-input host-checkbox" type="checkbox"
                      name="subdomains" value="{{ host }}" id="host-{{ forloop.counter }}"
                      {% if forloop.counter <= 20 %}checked{% endif %}>
-              <label class="custom-control-label" for="host-{{ forloop.counter }}">{{ host }}</label>
+              <label class="form-check-label" for="host-{{ forloop.counter }}">{{ host }}</label>
             </div>
             {% empty %}
             <p class="text-muted mb-0">Alt alan listesi boş.</p>
@@ -126,6 +126,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (cb) cb.checked = false;
       }
     });
+  });
+  document.getElementById('hostList')?.addEventListener('click', (event) => {
+    const item = event.target.closest('.selection-list-item');
+    if (!item || event.target !== item) return;
+    const cb = item.querySelector('input[type="checkbox"]');
+    if (cb) cb.checked = !cb.checked;
   });
 });
 </script>

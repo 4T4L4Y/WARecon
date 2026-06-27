@@ -32,6 +32,14 @@ function initFilterableSelectionList(options) {
 
   filterInput?.addEventListener('input', applyFilter);
 
+  // Satır boşluğuna tıklanınca seç (label/input kendi hâlinde çalışır)
+  listEl.addEventListener('click', (event) => {
+    const item = event.target.closest('.selection-list-item');
+    if (!item || !listEl.contains(item) || event.target !== item) return;
+    const cb = item.querySelector('input[type="checkbox"]');
+    if (cb) cb.checked = !cb.checked;
+  });
+
   selectAllBtn?.addEventListener('click', () => {
     visibleCheckboxes().forEach((wrap) => {
       const cb = wrap.querySelector('input[type="checkbox"]');
@@ -77,25 +85,26 @@ function escapeHtml(text) {
 }
 
 function buildHostCheckbox(host, index, checked) {
+  const id = `host-pick-${index}`;
   return `
-    <div class="selection-list-item custom-control custom-checkbox ${checked ? '' : ''}"
-         data-label="${escapeHtml(host)}">
-      <input class="custom-control-input host-pick" type="checkbox"
-             name="subdomains" value="${escapeHtml(host)}" id="host-pick-${index}"
+    <div class="selection-list-item form-check" data-label="${escapeHtml(host)}">
+      <input class="form-check-input host-pick" type="checkbox"
+             name="subdomains" value="${escapeHtml(host)}" id="${id}"
              ${checked ? 'checked' : ''}>
-      <label class="custom-control-label" for="host-pick-${index}">${escapeHtml(host)}</label>
+      <label class="form-check-label" for="${id}">${escapeHtml(host)}</label>
     </div>`;
 }
 
 function buildPortCheckbox(item, index, checked) {
   const label = `${item.host}:${item.port}`;
+  const id = `port-pick-${index}`;
   return `
-    <div class="selection-list-item custom-control custom-checkbox"
+    <div class="selection-list-item form-check"
          data-label="${escapeHtml(label)} ${escapeHtml(item.host)}">
-      <input class="custom-control-input port-pick" type="checkbox"
-             name="ports" value="${escapeHtml(item.id)}" id="port-pick-${index}"
+      <input class="form-check-input port-pick" type="checkbox"
+             name="ports" value="${escapeHtml(item.id)}" id="${id}"
              ${checked ? 'checked' : ''}>
-      <label class="custom-control-label" for="port-pick-${index}">
+      <label class="form-check-label" for="${id}">
         <span class="text-info">${escapeHtml(item.host)}</span>
         <span class="text-muted">:</span>
         <span class="output-port open">${escapeHtml(item.port)}</span>

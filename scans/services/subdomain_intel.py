@@ -18,8 +18,8 @@ from scans.services.live_subdomains import collect_live_subdomains
 
 logger = logging.getLogger("scans")
 
-OTX_GENERAL_URL = "https://otx.oteax.com/api/v1/indicators/domain/{host}/general"
-OTX_MALWARE_URL = "https://otx.oteax.com/api/v1/indicators/domain/{host}/malware"
+OTX_GENERAL_URL = "https://otx.alienvault.com/api/v1/indicators/domain/{host}/general"
+OTX_MALWARE_URL = "https://otx.alienvault.com/api/v1/indicators/domain/{host}/malware"
 VT_DOMAIN_URL = "https://www.virustotal.com/api/v3/domains/{host}"
 
 

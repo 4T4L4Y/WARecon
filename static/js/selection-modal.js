@@ -1,9 +1,8 @@
 /**
- * Filtrelenebilir checkbox seçim listesi (alt alan / port modalları).
+ * Filtrelenebilir tik kutulu seçim listesi (alt alan / port modalları).
  */
 function initFilterableSelectionList(options) {
   const {
-    modalEl,
     listEl,
     filterInput,
     selectAllBtn,
@@ -12,44 +11,36 @@ function initFilterableSelectionList(options) {
     onFilter,
   } = options;
 
-  function allCheckboxes() {
+  function allRows() {
     return listEl.querySelectorAll(`.${checkboxClass}`);
   }
 
-  function visibleCheckboxes() {
+  function visibleRows() {
     return listEl.querySelectorAll(`.${checkboxClass}:not(.d-none)`);
   }
 
   function applyFilter() {
     const q = (filterInput?.value || '').trim().toLowerCase();
-    allCheckboxes().forEach((wrap) => {
-      const label = wrap.dataset.label || '';
+    allRows().forEach((row) => {
+      const label = row.dataset.label || '';
       const match = !q || label.toLowerCase().includes(q);
-      wrap.classList.toggle('d-none', !match);
+      row.classList.toggle('d-none', !match);
     });
     if (onFilter) onFilter();
   }
 
   filterInput?.addEventListener('input', applyFilter);
 
-  // Satır boşluğuna tıklanınca seç (label/input kendi hâlinde çalışır)
-  listEl.addEventListener('click', (event) => {
-    const item = event.target.closest('.selection-list-item');
-    if (!item || !listEl.contains(item) || event.target !== item) return;
-    const cb = item.querySelector('input[type="checkbox"]');
-    if (cb) cb.checked = !cb.checked;
-  });
-
   selectAllBtn?.addEventListener('click', () => {
-    visibleCheckboxes().forEach((wrap) => {
-      const cb = wrap.querySelector('input[type="checkbox"]');
+    visibleRows().forEach((row) => {
+      const cb = row.querySelector('input[type="checkbox"]');
       if (cb) cb.checked = true;
     });
   });
 
   clearAllBtn?.addEventListener('click', () => {
-    visibleCheckboxes().forEach((wrap) => {
-      const cb = wrap.querySelector('input[type="checkbox"]');
+    visibleRows().forEach((row) => {
+      const cb = row.querySelector('input[type="checkbox"]');
       if (cb) cb.checked = false;
     });
   });
@@ -57,8 +48,8 @@ function initFilterableSelectionList(options) {
   return {
     getSelectedValues() {
       const values = [];
-      allCheckboxes().forEach((wrap) => {
-        const cb = wrap.querySelector('input[type="checkbox"]');
+      allRows().forEach((row) => {
+        const cb = row.querySelector('input[type="checkbox"]');
         if (cb?.checked) values.push(cb.value);
       });
       return values;
@@ -87,29 +78,31 @@ function escapeHtml(text) {
 function buildHostCheckbox(host, index, checked) {
   const id = `host-pick-${index}`;
   return `
-    <div class="selection-list-item form-check" data-label="${escapeHtml(host)}">
-      <input class="form-check-input host-pick" type="checkbox"
+    <label class="selection-list-item selection-tick-row" data-label="${escapeHtml(host)}" for="${id}">
+      <input class="selection-tick-input" type="checkbox"
              name="subdomains" value="${escapeHtml(host)}" id="${id}"
              ${checked ? 'checked' : ''}>
-      <label class="form-check-label" for="${id}">${escapeHtml(host)}</label>
-    </div>`;
+      <span class="selection-tick-box" aria-hidden="true"></span>
+      <span class="selection-tick-text">${escapeHtml(host)}</span>
+    </label>`;
 }
 
 function buildPortCheckbox(item, index, checked) {
   const label = `${item.host}:${item.port}`;
   const id = `port-pick-${index}`;
   return `
-    <div class="selection-list-item form-check"
-         data-label="${escapeHtml(label)} ${escapeHtml(item.host)}">
-      <input class="form-check-input port-pick" type="checkbox"
+    <label class="selection-list-item selection-tick-row"
+           data-label="${escapeHtml(label)} ${escapeHtml(item.host)}" for="${id}">
+      <input class="selection-tick-input" type="checkbox"
              name="ports" value="${escapeHtml(item.id)}" id="${id}"
              ${checked ? 'checked' : ''}>
-      <label class="form-check-label" for="${id}">
+      <span class="selection-tick-box" aria-hidden="true"></span>
+      <span class="selection-tick-text">
         <span class="text-info">${escapeHtml(item.host)}</span>
         <span class="text-muted">:</span>
         <span class="output-port open">${escapeHtml(item.port)}</span>
-      </label>
-    </div>`;
+      </span>
+    </label>`;
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -122,7 +115,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (subdomainModal) {
     subdomainListCtrl = initFilterableSelectionList({
-      modalEl: subdomainModal,
       listEl: document.getElementById('subdomainSelectList'),
       filterInput: document.getElementById('subdomainFilter'),
       selectAllBtn: document.getElementById('subdomainSelectAll'),
@@ -159,7 +151,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (portModal) {
     portListCtrl = initFilterableSelectionList({
-      modalEl: portModal,
       listEl: document.getElementById('portSelectList'),
       filterInput: document.getElementById('portFilter'),
       selectAllBtn: document.getElementById('portSelectAll'),

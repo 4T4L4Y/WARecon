@@ -287,37 +287,81 @@ body.login-page .card-header {
   overflow-y: auto;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 0.4285rem;
-  padding: 0.75rem 1rem;
+  padding: 0.5rem 0.75rem;
   background: rgba(0, 0, 0, 0.2);
 }
 .selection-list-item {
-  padding: 0.35rem 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-  cursor: pointer;
+  display: block;
+  margin: 0;
 }
-.selection-list-item:last-child {
+.selection-tick-row:last-child {
   border-bottom: none;
 }
-.selection-list-panel .form-check {
-  position: relative;
-  padding-left: 2rem;
-  margin-bottom: 0;
-}
-.selection-list-panel .form-check-input {
-  position: absolute;
-  left: 0;
-  top: 0.2rem;
+.selection-tick-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 0.35rem;
   margin: 0;
-  width: 1.1rem;
-  height: 1.1rem;
-  cursor: pointer;
-  z-index: 1;
-}
-.selection-list-panel .form-check-label {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 0.35rem;
   cursor: pointer;
   user-select: none;
-  width: 100%;
+  transition: background 0.15s ease;
+}
+.selection-tick-row:hover {
+  background: rgba(29, 140, 248, 0.08);
+}
+.selection-tick-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.selection-tick-box {
+  flex: 0 0 1.35rem;
+  width: 1.35rem;
+  height: 1.35rem;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  border-radius: 0.3rem;
+  background: rgba(0, 0, 0, 0.35);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.selection-tick-box::after {
+  content: "";
   display: block;
+  width: 0.35rem;
+  height: 0.65rem;
+  border: solid #fff;
+  border-width: 0 2.5px 2.5px 0;
+  transform: rotate(45deg) scale(0);
+  margin-top: -2px;
+  transition: transform 0.12s ease;
+}
+.selection-tick-input:checked + .selection-tick-box {
+  background: #1d8cf8;
+  border-color: #1d8cf8;
+  box-shadow: 0 0 0 2px rgba(29, 140, 248, 0.25);
+}
+.selection-tick-input:checked + .selection-tick-box::after {
+  transform: rotate(45deg) scale(1);
+}
+.selection-tick-input:focus + .selection-tick-box {
+  box-shadow: 0 0 0 3px rgba(29, 140, 248, 0.35);
+}
+.selection-tick-text {
+  flex: 1;
+  font-size: 0.9rem;
+  line-height: 1.35;
+  word-break: break-all;
 }
 .nav-notification-badge {
   position: absolute;

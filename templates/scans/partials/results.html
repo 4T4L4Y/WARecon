@@ -1,15 +1,22 @@
 {% load scan_extras %}
-<div class="card">
+<div class="card card-results-global mb-0">
   <div class="card-header d-flex justify-content-between align-items-center flex-wrap">
-    <h4 class="card-title mb-0"><i class="tim-icons icon-bullet-list-67 mr-2"></i>Sonuçlar</h4>
+    <div>
+      <span class="workspace-section-label d-block">Global</span>
+      <h4 class="card-title mb-0 mt-1"><i class="tim-icons icon-bullet-list-67 mr-2"></i>Tüm Modül Sonuçları</h4>
+    </div>
     {% if domain %}
     <div class="d-flex align-items-center flex-wrap mt-2 mt-md-0">
       {% if scan %}
       <a href="{% url 'scans:progress' scan.pk %}" class="btn btn-sm btn-info mr-2 mb-1">
         <i class="tim-icons icon-laptop mr-1"></i>Canlı İzleme
       </a>
-      <a href="{% url 'scans:report_html' scan.pk %}" class="btn btn-sm btn-outline-default mr-2 mb-1" target="_blank">HTML Rapor</a>
-      <a href="{% url 'scans:report_pdf' scan.pk %}" class="btn btn-sm btn-primary mb-1">PDF İndir</a>
+      <a href="{% url 'scans:report_html' scan.pk %}" class="btn btn-sm btn-outline-default mr-2 mb-1" target="_blank">
+        <i class="tim-icons icon-paper mr-1"></i>HTML Rapor
+      </a>
+      <a href="{% url 'scans:report_pdf' scan.pk %}" class="btn btn-sm btn-primary mb-1">
+        <i class="tim-icons icon-cloud-download-93 mr-1"></i>PDF İndir
+      </a>
       {% endif %}
       <span class="text-muted small ml-2">{{ domain }}</span>
     </div>

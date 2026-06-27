@@ -6,7 +6,7 @@
   {% include "includes/head.html" %}
   {% block head_extra %}{% endblock %}
 </head>
-<body data-domain="{{ domain|default:'' }}" data-scan-id="{{ scan.pk|default:'' }}">
+<body class="warecon-saas" data-domain="{{ domain|default:'' }}" data-scan-id="{{ scan.pk|default:'' }}">
   <div class="wrapper">
     {% include "includes/sidebar.html" %}
     <div class="main-panel">

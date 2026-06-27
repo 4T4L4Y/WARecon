@@ -3,12 +3,15 @@
 ### Docker (önerilen)
 ```bash
 cp .env.example .env
+# OTX_API_KEY=...  (OSINT için — https://otx.alienvault.com/api)
 docker compose up --build -d
 docker compose exec web python manage.py createsuperuser
 ```
 Servisler: `web` (Gunicorn :8000), `worker` (RQ), `redis`. Veri: volume `warecon_data` (`/data` → db.sqlite3 + outputs).
 
 PD araçları (`naabu`, `subfinder`, `dnsx`, `httpx`, `katana`, `nuclei`) Dockerfile içinde `go install` ile değil, GitHub release binary'leri ile kurulur (`docker/install-pd-tools.sh`). Bu, Go sürüm uyumsuzluklarını ve CGO derleme hatalarını önler. Sürümleri güncellemek için bu script'teki pin'leri değiştirin.
+
+**OSINT:** Tarama bitince yalnızca canlı alt alanlar (HTTPX / 80 / 443) AlienVault OTX ile skorlanır. `OTX_API_KEY` ortam değişkeni gerekir; `INTEL_RATE_LIMIT` (varsayılan 2/s) rate limit koruması sağlar.
 
 ### Manuel geliştirme
 - Django: `python manage.py runserver 0.0.0.0:8000`

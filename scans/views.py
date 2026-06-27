@@ -28,6 +28,7 @@ from .services.pipeline import (
 )
 from .services.reports import render_html_report, render_pdf_report
 from scans.services import tools
+from scans.services.subdomain_intel import intel_context_for_scan
 from .tasks import enqueue_continue_scan, enqueue_scan
 
 
@@ -376,11 +377,22 @@ def run_exploit_check(request, pk: int):
 @require_GET
 def scan_detail(request, pk: int):
     scan = get_object_or_404(
-        _user_scans(request.user).select_related("user__profile").prefetch_related("results"),
+        _user_scans(request.user).select_related("user__profile").prefetch_related(
+            "results", "intel_results",
+        ),
         pk=pk,
     )
     host = request.GET.get("host", "").strip()
     subs = subdomain_breakdown(scan)
+    intel_by_host = {r.hostname: r for r in scan.intel_results.all()}
+    for item in subs:
+        intel = intel_by_host.get(item["host"])
+        if intel:
+            item["intel_score"] = intel.risk_score
+            item["intel_badge"] = intel.badge_class
+            item["intel_summary"] = intel.summary
+        else:
+            item["intel_score"] = None
     if not host:
         selected = [s["host"] for s in subs if s["scanned"]]
         host = selected[0] if selected else scan.domain
@@ -390,8 +402,54 @@ def scan_detail(request, pk: int):
         "subdomain_breakdown": subs,
         "active_host": host,
         "host_results": host_results_context(scan, host),
+        "threat_intel": intel_context_for_scan(scan),
     })
     return render(request, "scans/scan_detail.html", context)
+
+
+@login_required_basic
+@require_GET
+def subdomain_intel_api(request, pk: int):
+    scan = get_object_or_404(
+        _user_scans(request.user).prefetch_related("intel_results"),
+        pk=pk,
+    )
+    ctx = intel_context_for_scan(scan)
+    return JsonResponse({
+        "ok": True,
+        "status": ctx["status"],
+        "message": ctx["message"],
+        "live_count": ctx["live_count"],
+        "queried": ctx["queried"],
+        "has_api_key": ctx["has_api_key"],
+        "top_critical": [
+            {
+                "hostname": r.hostname,
+                "risk_score": r.risk_score,
+                "threat_level": r.threat_level,
+                "threat_label": r.get_threat_level_display(),
+                "badge_class": r.badge_class,
+                "live_reasons": r.live_reasons,
+                "pulse_count": r.pulse_count,
+                "malware_count": r.malware_count,
+                "malicious_votes": r.malicious_votes,
+                "sources": r.sources,
+                "summary": r.summary,
+            }
+            for r in ctx["top_critical"]
+        ],
+        "results": [
+            {
+                "hostname": r.hostname,
+                "risk_score": r.risk_score,
+                "threat_level": r.threat_level,
+                "threat_label": r.get_threat_level_display(),
+                "badge_class": r.badge_class,
+                "summary": r.summary,
+            }
+            for r in ctx["results"]
+        ],
+    })
 
 
 @login_required_basic

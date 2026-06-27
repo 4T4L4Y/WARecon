@@ -5,6 +5,7 @@ Domain keşif ve güvenlik analiz platformu. **Django 5** + **[Black Dashboard](
 ## Özellikler
 
 - Port, subdomain, DNS, Wayback, HTTPX, Katana crawl, Nuclei zafiyet taraması
+- **OSINT subdomain istihbaratı** — canlı hedefler için AlienVault OTX skorlama (Top 5 Kritik Hedef)
 - Otomatik pipeline sıralaması
 - Arka planda tarama (sayfa donmaz)
 - Canlı ilerleme (SSE)
@@ -20,6 +21,7 @@ Domain keşif ve güvenlik analiz platformu. **Django 5** + **[Black Dashboard](
 ```bash
 cp .env.example .env
 # .env içinde DJANGO_SECRET_KEY değiştirin
+# OSINT için (ücretsiz): OTX_API_KEY=...  https://otx.alienvault.com/api
 
 docker compose up --build -d
 

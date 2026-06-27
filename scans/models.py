@@ -172,3 +172,50 @@ class ScanNotification(models.Model):
 
     def __str__(self):
         return f"{self.user_id}: {self.title[:40]}"
+
+
+class SubdomainIntelResult(models.Model):
+    """OSINT / Threat Intelligence skoru — yalnızca canlı doğrulanmış alt alanlar."""
+
+    class ThreatLevel(models.TextChoices):
+        LOW = "low", "Düşük Risk"
+        MEDIUM = "medium", "Orta İlgi"
+        HIGH = "high", "Yüksek Risk"
+        CRITICAL = "critical", "Tehdit Aktiviteli"
+
+    scan = models.ForeignKey(
+        Scan,
+        on_delete=models.CASCADE,
+        related_name="intel_results",
+    )
+    hostname = models.CharField(max_length=255, db_index=True)
+    risk_score = models.PositiveSmallIntegerField(default=0)
+    threat_level = models.CharField(
+        max_length=16,
+        choices=ThreatLevel.choices,
+        default=ThreatLevel.LOW,
+    )
+    live_reasons = models.JSONField(default=list, blank=True)
+    pulse_count = models.PositiveIntegerField(default=0)
+    malware_count = models.PositiveIntegerField(default=0)
+    malicious_votes = models.PositiveSmallIntegerField(default=0)
+    sources = models.JSONField(default=list, blank=True)
+    summary = models.TextField(blank=True)
+    raw_data = models.JSONField(default=dict, blank=True)
+    queried_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-risk_score", "hostname"]
+        unique_together = [("scan", "hostname")]
+
+    def __str__(self):
+        return f"{self.hostname} ({self.risk_score})"
+
+    @property
+    def badge_class(self) -> str:
+        return {
+            self.ThreatLevel.LOW: "badge-success",
+            self.ThreatLevel.MEDIUM: "badge-info",
+            self.ThreatLevel.HIGH: "badge-warning",
+            self.ThreatLevel.CRITICAL: "badge-danger",
+        }.get(self.threat_level, "badge-secondary")

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Scan, ScanModuleResult
+from .models import Scan, ScanModuleResult, SubdomainIntelResult
 
 
 class ScanModuleResultInline(admin.TabularInline):
@@ -22,3 +22,10 @@ class ScanAdmin(admin.ModelAdmin):
 class ScanModuleResultAdmin(admin.ModelAdmin):
     list_display = ("scan", "module", "output_file", "created_at")
     list_filter = ("module",)
+
+
+@admin.register(SubdomainIntelResult)
+class SubdomainIntelResultAdmin(admin.ModelAdmin):
+    list_display = ("scan", "hostname", "risk_score", "threat_level", "queried_at")
+    list_filter = ("threat_level",)
+    search_fields = ("hostname",)

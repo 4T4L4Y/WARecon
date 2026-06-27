@@ -21,6 +21,25 @@ def enqueue_continue_scan(scan_id: int) -> None:
     enqueue_scan(scan_id)
 
 
+def run_subdomain_intel_job(scan_id: int) -> None:
+    from scans.services.subdomain_intel import run_subdomain_intel
+
+    run_subdomain_intel(scan_id)
+
+
+def enqueue_subdomain_intel(scan_id: int) -> None:
+    """Tarama sonrası OSINT istihbaratını arka planda çalıştır."""
+    from django.conf import settings
+
+    if not getattr(settings, "OTX_API_KEY", ""):
+        return
+    try:
+        queue = django_rq.get_queue("default")
+        queue.enqueue(run_subdomain_intel_job, scan_id, job_timeout=1800)
+    except Exception:
+        run_subdomain_intel_job(scan_id)
+
+
 def cancel_rq_job(scan: Scan) -> None:
     if not scan.rq_job_id:
         return

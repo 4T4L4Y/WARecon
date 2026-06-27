@@ -19,6 +19,7 @@ urlpatterns = [
     path("scan/<int:pk>/select-subdomains/", views.select_subdomains, name="select_subdomains"),
     path("scan/<int:pk>/api/subdomain-selection/", views.subdomain_selection_api, name="subdomain_selection_api"),
     path("scan/<int:pk>/api/port-selection/", views.port_selection_api, name="port_selection_api"),
+    path("scan/<int:pk>/api/subdomain-intel/", views.subdomain_intel_api, name="subdomain_intel_api"),
     path("scan/<int:pk>/cancel/", views.scan_cancel, name="cancel"),
     path("scan/<int:pk>/skip/", views.scan_skip_module, name="skip_module"),
     path("api/nuclei-templates/", views.nuclei_templates_api, name="nuclei_templates"),

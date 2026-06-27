@@ -36,6 +36,9 @@
           {% else %}
           <span class="badge badge-secondary badge-sm">Seçilmedi</span>
           {% endif %}
+          {% if item.intel_score is not None %}
+          <span class="badge {{ item.intel_badge }} badge-sm" title="{{ item.intel_summary }}">{{ item.intel_score }}</span>
+          {% endif %}
         </a>
         {% empty %}
         <div class="list-group-item text-muted">Alt alan kaydı yok</div>
@@ -45,6 +48,8 @@
   </div>
 
   <div class="col-lg-9 mb-4">
+    {% include "scans/partials/threat_intel.html" %}
+
     {% if active_host != scan.domain or host_results.panels %}
     <div class="card mb-4">
       <div class="card-header">
@@ -84,4 +89,12 @@
     {% include "scans/partials/results.html" %}
   </div>
 </div>
+{% endblock %}
+
+{% block scripts_extra %}
+{% load static %}
+<script>
+  window.SCAN_INTEL_API = "{% url 'scans:subdomain_intel_api' scan.pk %}";
+</script>
+<script src="{% static 'js/threat-intel.js' %}?v=1"></script>
 {% endblock %}

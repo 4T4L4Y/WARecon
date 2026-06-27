@@ -144,3 +144,10 @@ LOGGING = {
     "handlers": {"console": {"class": "logging.StreamHandler"}},
     "loggers": {"scans": {"handlers": ["console"], "level": "INFO"}},
 }
+
+# OSINT / Threat Intelligence (AlienVault OTX — ücretsiz API anahtarı)
+# https://otx.alienvault.com/api
+OTX_API_KEY = os.environ.get("OTX_API_KEY", "")
+VIRUSTOTAL_API_KEY = os.environ.get("VIRUSTOTAL_API_KEY", "")
+INTEL_RATE_LIMIT = float(os.environ.get("INTEL_RATE_LIMIT", "2"))  # istek/saniye
+INTEL_MAX_HOSTS = int(os.environ.get("INTEL_MAX_HOSTS", "50"))

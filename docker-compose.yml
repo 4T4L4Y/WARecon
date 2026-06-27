@@ -23,6 +23,10 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       DATA_DIR: /data
+      OTX_API_KEY: ${OTX_API_KEY:-}
+      VIRUSTOTAL_API_KEY: ${VIRUSTOTAL_API_KEY:-}
+      INTEL_RATE_LIMIT: ${INTEL_RATE_LIMIT:-2}
+      INTEL_MAX_HOSTS: ${INTEL_MAX_HOSTS:-50}
     volumes:
       - warecon_data:/data
     depends_on:
@@ -39,6 +43,10 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       DATA_DIR: /data
+      OTX_API_KEY: ${OTX_API_KEY:-}
+      VIRUSTOTAL_API_KEY: ${VIRUSTOTAL_API_KEY:-}
+      INTEL_RATE_LIMIT: ${INTEL_RATE_LIMIT:-2}
+      INTEL_MAX_HOSTS: ${INTEL_MAX_HOSTS:-50}
     volumes:
       - warecon_data:/data
     cap_add:

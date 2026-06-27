@@ -343,6 +343,9 @@ def execute_scan(scan_id: int) -> None:
 
         notify_scan_finished(scan)
         notify_critical_findings(scan, collect_nuclei_items_for_scan(scan))
+        from scans.tasks import enqueue_subdomain_intel
+
+        enqueue_subdomain_intel(scan.pk)
     except Exception as exc:
         scan.status = Scan.Status.FAILED
         scan.error_message = str(exc)

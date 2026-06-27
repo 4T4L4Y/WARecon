@@ -363,6 +363,18 @@ body.login-page .card-header {
   line-height: 1.35;
   word-break: break-all;
 }
+.threat-intel-table .threat-score {
+  font-weight: 700;
+  font-size: 1rem;
+}
+.threat-score-critical { color: #fd5d93; }
+.threat-score-high { color: #ff8d72; }
+.threat-score-medium { color: #1d8cf8; }
+.threat-score-low { color: #00f2c3; }
+#threatIntelCard .badge-sm {
+  font-size: 0.65rem;
+  margin-left: 0.25rem;
+}
 .nav-notification-badge {
   position: absolute;
   top: 2px;

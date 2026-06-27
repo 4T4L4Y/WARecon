@@ -10,7 +10,10 @@ def bind_scan_log(scan_id: int, module: str = ""):
 
 
 def reset_scan_log(token) -> None:
-    _scan_log_ctx.reset(token)
+    try:
+        _scan_log_ctx.reset(token)
+    except RuntimeError:
+        _scan_log_ctx.set(None)
 
 
 def log_activity(message: str, *, level: str = "info", module: str | None = None) -> ScanLog | None:
